@@ -45,7 +45,7 @@ const MAGIC = [0x53, 0x52, 0x47, 0x42]; // SRGB
 const CMD_LOCAL = 0x04;
 const CMD_JPEG = 0x05;
 
-// Keep packet format changes in sync with Open_AIO.js and docs/PROTOCOL.md.
+// Keep packet format changes in sync with Open_AIO.js and AGENT.md.
 const BULK_OUT_ENDPOINTS = [0x01, 0x02, 0x03, 0x04];
 const BULK_IN_ENDPOINTS = [0x81, 0x82, 0x83, 0x84];
 const BULK_CHUNK_SIZE = 16384;

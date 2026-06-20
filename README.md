@@ -1,102 +1,168 @@
 # Open AIO
 
-PC telemetry and active foreground app display for an ESP32-driven round TFT mounted on the decorative top of a CPU water-cooling block.
+Open AIO is a USB-first display stack for a 480x480 round ESP32-S3 LCD inside a PC cooling/display build. It keeps the device firmware simple and fast: the PC renders complete frames, and the ESP32 receives those frames over RawUSB and displays them smoothly.
 
-The project is split into three small pieces:
+The current target hardware is the LilyGO T-RGB 2.8 inch Full Circle board:
+
+- ESP32-S3R8
+- 16 MB flash
+- 8 MB OPI PSRAM
+- 480x480 round RGB panel
+- USB device mode for RawUSB streaming
+
+The active product goal is:
 
 ```text
-Windows PC agent -> FastAPI local server -> ESP32 round TFT display
+SignalRGB or Open AIO Electron app -> RawUSB frames -> ESP32-S3 display
 ```
 
-The PC agent stays lightweight. It collects telemetry and the active foreground process basename only. It does not extract icons, window titles, thumbnails, or process images. The server owns app mapping and asset preprocessing, and the ESP32 only consumes validated JSON and preprocessed RGB565 assets.
+No NZXT CAM spoofing is used. No NZXT USB IDs are used. Open AIO can use NZXT-ESC-style presets as a PC-side UI/rendering surface, but the hardware presents itself as Open AIO.
 
-## Hardware Assumptions
+## What Is Included
 
-- LilyGO T-RGB 2.1-inch half-circle board with ESP32-S3R8.
-- 480x480 ST7701S RGB panel with FT3267 touch.
-- Official LilyGO T-RGB Arduino display library.
-- USB 5V power from a motherboard USB header or another proper USB 5V source.
-- The display is mounted on a decorative top surface, bracket, magnets, or thin adhesive, not directly on a hot metal contact surface.
+`firmware/`
 
-## Server Setup
+ESP32-S3 firmware for the RawUSB lab stream path. It shows the boot animation while idle and displays incoming frames when SignalRGB or the Open AIO desktop app is streaming.
 
-```bash
-cd server
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-cp config.example.json config.json
-uvicorn app.main:app --host 0.0.0.0 --port 8000
+`electron-app/`
+
+The preferred Windows desktop shell. It launches and supervises the local server/render flow, provides the app/tray surface, and keeps the controlled renderer synchronized with the device stream.
+
+`nzxt-esc-live/`
+
+Open AIO's customized ESC runtime. Treat this as our maintained local fork/copy of the NZXT-ESC v6.05.11 experience, adapted for a 480x480 circular display, local sensors, and RawUSB streaming.
+
+`nzxt-esc-gallery/`
+
+Preset gallery module. This is kept separate from the ESC runtime so presets can be refreshed or imported without overwriting Open AIO's customized renderer.
+
+`pc-agent/`
+
+Python agent and RawUSB transport. It gathers local sensor data and sends rendered frames to the device.
+
+`server/`
+
+Local FastAPI server for ESC hosting, sensor shims, gallery data, and frame endpoints.
+
+`signalrgb/`
+
+SignalRGB plugin files for streaming to the Open AIO RawUSB firmware.
+
+`drivers/`, `windows/driver/`, and `scripts/`
+
+Windows WinUSB driver metadata plus helper scripts for setup, launch, repair, and development workflows.
+
+## Quick Start
+
+Install project dependencies:
+
+```powershell
+cd electron-app
+npm install
 ```
 
-The server reads `config.json` if present, otherwise `config.example.json`. The default API key is `change-me`; change it before using the project beyond a local MVP.
+Install Python dependencies:
 
-Preprocess an app logo:
-
-```bash
-cd server
-python scripts/preprocess_asset.py path/to/logo.png steam --size 160
+```powershell
+cd ..\server
+python -m pip install -r requirements.txt
+cd ..\pc-agent
+python -m pip install -r requirements.txt
 ```
 
-This creates `assets/apps/steam/logo_160x160.rgb565` and `assets/apps/steam/manifest.json`.
+Launch the desktop app:
 
-## PC Agent Setup
-
-Windows:
-
-```bat
-scripts\setup_windows.ps1
-scripts\start_tray.ps1
+```powershell
+cd ..
+.\scripts\start_electron.ps1
 ```
 
-The tray icon is the normal Windows control surface. Right-click it to start, stop, restart, open logs, open logo review, check the device, or switch transport mode. See `docs/WINDOWS.md` for the full Windows bring-up path, including firewall, LAN IP, ESP32 config, transport modes, and autostart notes.
+The normal ESC surface is served locally at:
 
-Linux/macOS:
-
-```bash
-cd pc-agent
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-cp config.example.json config.json
-python agent.py
+```text
+http://127.0.0.1:8000/nzxt-esc/?kraken=1&mockLcd=480&mockShape=circle
 ```
 
-The agent posts process basename and telemetry every second by default. It never sends window titles. On Linux/X11, install `xdotool` for active process detection. On Sway/Wayland, install `swaymsg` and `jq`. Other Wayland desktops may report `unknown.exe` unless a desktop-specific foreground-process API is added.
+Use the Electron app as the preferred control surface when testing live streaming, because it manages the render process more reliably than a normal browser tab.
 
-## ESP32 Firmware Setup
+## Firmware Build And Flash
 
-```bash
+The active firmware target is:
+
+```powershell
 cd firmware
-pio run
-pio run --target upload
-pio device monitor
+python -m platformio run -e t-rgb-half-circle-rawusb
 ```
 
-Before flashing, edit `firmware/src/config.h` with your Wi-Fi network, server URL, device name, device ID, and API key. The firmware is configured for the LilyGO T-RGB 2.1-inch half-circle board.
+Flash when the board is in download mode:
 
-## SignalRGB LCD Streaming
+```powershell
+python -m platformio run -e t-rgb-half-circle-rawusb -t upload --upload-port COM4
+```
 
-The `signalrgb` folder contains local SignalRGB LCD plugins for the serial and RawUSB firmware builds. See `docs/SIGNALRGB.md` for plugin installation, driver setup, endpoint notes, and the RawUSB status/debug path.
+The active USB identity is:
 
-## Native Sensors and Designer
+- VID: `0x303A`
+- PID: `0x4004`
+- Product: `Open AIO`
 
-The PC side is moving toward a native sensor bridge and browser-based display designer while keeping the current firmware screen stable. See `docs/ROADMAP.md`, `sensor-bridge/README.md`, and `docs/DESIGNER.md`.
+Secrets are not committed. If Wi-Fi mode is needed, create a local ignored file:
 
-## Security Notes
+```cpp
+// firmware/src/config.local.h
+#pragma once
 
-- All API calls require `X-API-Key`.
-- The PC agent sends the executable basename only.
-- Unknown processes map to the default app.
-- Assets are served only from known app folders.
-- ESP32 verifies asset SHA-256 before saving.
-- Asset size is capped on both server and ESP32.
-- The MVP is intended for local/LAN use. Use HTTPS or a tunnel with authentication before crossing trust boundaries.
+#define WIFI_SSID "YOUR_WIFI_SSID"
+#define WIFI_PASSWORD "YOUR_WIFI_PASSWORD"
+#define SERVER_BASE_URL "http://YOUR_PC_LAN_IP:8000"
+```
 
-## MVP Limitations
+The RawUSB streaming path does not require Wi-Fi.
 
-- Latest telemetry is stored in memory, so it resets when the server restarts.
-- GPU telemetry is `null` in the default Windows agent.
-- The server has a hardcoded process-to-app map.
-- The default firmware display pin configuration is a starting point and must be adjusted for real hardware.
-- No database, user management, web UI, or OTA firmware update flow is included in phase 1.
+## SignalRGB
+
+Install the Open AIO plugin from `signalrgb/` into SignalRGB's user plugins folder, then select the Open AIO LCD device/plugin inside SignalRGB.
+
+SignalRGB and the Open AIO Electron renderer share the same RawUSB firmware path. If SignalRGB is streaming, it owns the display. When no stream is active, the device returns to the boot animation.
+
+## Presets And Gallery
+
+The ESC runtime and gallery are intentionally separate:
+
+- `nzxt-esc-live/` is the Open AIO ESC fork/custom runtime.
+- `nzxt-esc-gallery/` is the preset gallery module.
+
+This lets the project update or replace preset packs without losing the local renderer changes needed for 480x480 output, local sensor data, and RawUSB streaming.
+
+When adding presets, keep shared presets in `nzxt-esc-gallery/`. Avoid committing personal local drafts unless they are meant to become part of the public gallery.
+
+## Sensors
+
+Open AIO does not depend on NZXT CAM for sensor values. Sensor values come from the local Open AIO stack:
+
+- Windows APIs
+- WMI
+- GPU vendor APIs where available
+- LibreHardwareMonitor-compatible paths where useful
+- `pc-agent/telemetry.py`
+
+Presets can ask for CAM-like sensor names; Open AIO maps those names to local equivalents when possible. Missing sensors should fall back gracefully instead of breaking a preset.
+
+## Privacy
+
+The public repo should only contain placeholder secrets:
+
+- `YOUR_WIFI_SSID`
+- `YOUR_WIFI_PASSWORD`
+- `change-me`
+
+Do not commit local config files, logs, Electron settings, app icon cache, generated designer storage, build output, or real Wi-Fi credentials.
+
+## Documentation
+
+This repository intentionally has only two Markdown files:
+
+- `README.md`: project overview and human usage.
+- `AGENT.md`: architecture notes, AI-session context, process rules, and future work.
+
+Keep new documentation in one of those two files.

@@ -43,7 +43,7 @@ const CMD_LOCAL = 0x04;
 const CMD_JPEG = 0x05;
 const SIGNALRGB_HEADER_SIZE = 20;
 
-// Keep packet format changes in sync with Open_AIO_RawUSB.js and docs/PROTOCOL.md.
+// Keep packet format changes in sync with Open_AIO_RawUSB.js and AGENT.md.
 
 let initialized = false;
 let previousFrame = null;
