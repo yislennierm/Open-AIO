@@ -59,11 +59,9 @@ function Sync-PythonEnv {
 
 Sync-PythonEnv -Name "server" -Path (Join-Path $Root "server")
 Sync-PythonEnv -Name "pc-agent" -Path (Join-Path $Root "pc-agent")
-Sync-PythonEnv -Name "desktop-app" -Path (Join-Path $Root "desktop-app")
 
 Write-Host ""
 Write-Host "Next:"
 Write-Host "  1. Edit server\config.json and pc-agent\config.json if you do not want the default API key."
-Write-Host "  2. Run scripts\start_tray.ps1."
-Write-Host "  3. Right-click the tray icon and choose Install Sensor Startup Task for CPU temperature at login."
-Write-Host "  4. Right-click the tray icon to start, stop, restart, and inspect telemetry."
+Write-Host "  2. Run scripts\start_electron.ps1."
+Write-Host "  3. Use the Electron app as the tray/control surface."

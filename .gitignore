@@ -17,11 +17,6 @@ firmware/src/config.local.h
 electron-app/node_modules/
 electron-app/settings.json
 
-sensor-bridge/bin/
-sensor-bridge/obj/
-sensor-bridge/tools/**/bin/
-sensor-bridge/tools/**/obj/
-
 server/designer_storage*.json
 server/designer_storage*.tmp
 server/preset_previews.json

@@ -85,15 +85,12 @@ WinUSB driver metadata for the Open AIO RawUSB device. Keep device naming user-f
 
 `scripts/`
 
-Windows setup, launch, driver, and service/tray helper scripts. Prefer these over ad hoc commands when they already cover the workflow.
+Windows setup, launch, driver, SignalRGB deployment, and repair helper scripts. Prefer these over ad hoc commands when they already cover the workflow.
 
-`desktop-app/`
+Retired paths removed from the active tree:
 
-Legacy Python tray/control code. Keep only until Electron fully replaces its useful behavior.
-
-`sensor-bridge/`
-
-Experimental/native sensor bridge work. Keep source only; never commit build outputs.
+- `desktop-app/`: old Python tray/control app. Electron is now the desktop app.
+- `sensor-bridge/`: experimental C# sensor bridge. Reintroduce native helpers only with a clear active use case.
 
 ## RawUSB Protocol
 
@@ -211,5 +208,4 @@ Broad text scans can hit base64 preset blobs. Investigate hits, but distinguish 
 - Keep SignalRGB smooth on the RawUSB lab path.
 - Keep Electron/ESC live preview and device stream synchronized during preset edits.
 - Formalize gallery refresh/import so upstream presets can be brought in without overwriting Open AIO changes.
-- Replace the legacy Python tray once Electron covers all needed launch/tray behavior.
 - Revisit app detector/icons later only after stream stability is protected.

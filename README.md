@@ -50,7 +50,7 @@ SignalRGB RawUSB plugin for streaming to the Open AIO RawUSB firmware.
 
 `drivers/`, `windows/driver/`, and `scripts/`
 
-Windows WinUSB driver metadata plus helper scripts for setup, launch, repair, and development workflows.
+Windows WinUSB driver metadata plus helper scripts for setup, launch, SignalRGB deployment, repair, and development workflows.
 
 ## Quick Start
 
@@ -84,6 +84,8 @@ http://127.0.0.1:8000/nzxt-esc/?kraken=1&mockLcd=480&mockShape=circle
 ```
 
 Use the Electron app as the preferred control surface when testing live streaming, because it manages the render process more reliably than a normal browser tab.
+
+Older Python tray and experimental native sensor-bridge paths have been removed from the active tree. The desktop product path is Electron plus the Python server/agent behind it.
 
 ## Firmware Build And Flash
 
