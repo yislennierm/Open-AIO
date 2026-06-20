@@ -13,6 +13,11 @@ firmware/.pio/
 firmware/.platformio/
 firmware/.venv/
 firmware/src/config.local.h
+firmware-idf-video-lab/.pio/
+firmware-idf-video-lab/.platformio/
+firmware-idf-video-lab/sdkconfig
+firmware-idf-video-lab/sdkconfig.*
+!firmware-idf-video-lab/sdkconfig.defaults
 
 electron-app/node_modules/
 electron-app/settings.json

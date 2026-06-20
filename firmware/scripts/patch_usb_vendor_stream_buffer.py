@@ -8,6 +8,25 @@ sdk_dir = framework_dir / "tools" / "sdk" / "esp32s3"
 
 source = usb_vendor.read_text()
 
+if "OPEN_AIO_DIRECT_VENDOR_HOOK" not in source:
+    source = source.replace(
+        '#include "freertos/stream_buffer.h" // FAST_STREAM_BUFFER_PATCH\n',
+        '#include "freertos/stream_buffer.h" // FAST_STREAM_BUFFER_PATCH\nextern "C" bool open_aio_vendor_rx_cb(uint8_t itf) __attribute__((weak)); // OPEN_AIO_DIRECT_VENDOR_HOOK\n',
+    )
+    source = source.replace(
+        """void tud_vendor_rx_cb(uint8_t itf){
+    size_t len = tud_vendor_n_available(itf);
+""",
+        """void tud_vendor_rx_cb(uint8_t itf){
+    if(open_aio_vendor_rx_cb && open_aio_vendor_rx_cb(itf)){
+        return;
+    }
+    size_t len = tud_vendor_n_available(itf);
+""",
+    )
+    usb_vendor.write_text(source)
+    print("Patched Arduino USBVendor with Open AIO direct RX hook")
+
 if "FAST_STREAM_BUFFER_PATCH" not in source:
     source = source.replace(
         '#include "esp32-hal-tinyusb.h"\n',
@@ -165,4 +184,3 @@ for sdkconfig in sdk_dir.glob("*/include/sdkconfig.h"):
     text = text.replace("#define CONFIG_TINYUSB_VENDOR_RX_BUFSIZE 64", "#define CONFIG_TINYUSB_VENDOR_RX_BUFSIZE 4096")
     text = text.replace("#define CONFIG_TINYUSB_VENDOR_TX_BUFSIZE 64", "#define CONFIG_TINYUSB_VENDOR_TX_BUFSIZE 512")
     sdkconfig.write_text(text)
-

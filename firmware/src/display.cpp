@@ -1403,6 +1403,18 @@ bool drawSignalRgb565RectScaled(int x, int y, int width, int height, int scale, 
   return true;
 }
 
+bool drawSignalRgb565Frame(const uint8_t* data, size_t dataLen) {
+  const size_t frameBytes = static_cast<size_t>(DISPLAY_WIDTH) * DISPLAY_HEIGHT * sizeof(uint16_t);
+  if (!data || dataLen != frameBytes) {
+    return false;
+  }
+  if (!framebuffer) {
+    return false;
+  }
+  memcpy(framebuffer, data, frameBytes);
+  return true;
+}
+
 void flushSignalRgbFrame() {
   if (!framebuffer) {
     return;

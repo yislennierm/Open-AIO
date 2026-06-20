@@ -27,8 +27,22 @@ static USBHIDVendor nzxtHid(63, false);
 #endif
 #if RAWUSB_STREAM_ENABLED
 extern "C" uint32_t tud_vendor_n_write_flush(uint8_t itf);
+extern "C" uint32_t tud_vendor_n_available(uint8_t itf);
+extern "C" uint32_t tud_vendor_n_read(uint8_t itf, void* buffer, uint32_t bufsize);
 
 static constexpr uint8_t MICROSOFT_OS_VENDOR_CODE = 0x20;
+
+struct DirectVendorStream {
+  uint8_t itf;
+
+  int available() {
+    return static_cast<int>(tud_vendor_n_available(itf));
+  }
+
+  size_t read(uint8_t* buffer, size_t size) {
+    return static_cast<size_t>(tud_vendor_n_read(itf, buffer, static_cast<uint32_t>(size)));
+  }
+};
 
 static const uint8_t microsoftOsCompatIdDescriptor[] = {
     0x28, 0x00, 0x00, 0x00,  // dwLength
@@ -196,9 +210,10 @@ static constexpr uint32_t SIGNALRGB_TIMEOUT_MS = 3000;
 static constexpr uint32_t USB_APP_TIMEOUT_MS = 3000;
 static constexpr uint32_t USB_REVIEW_RENDER_INTERVAL_MS = 5000;
 static constexpr uint32_t BOOT_IDLE_FRAME_INTERVAL_MS = 33;
-static constexpr uint32_t SIGNALRGB_MIN_RENDER_INTERVAL_MS = 50;
+static constexpr uint32_t SIGNALRGB_MIN_RENDER_INTERVAL_MS_VALUE = SIGNALRGB_MIN_RENDER_INTERVAL_MS;
 static constexpr size_t SIGNALRGB_HEADER_SIZE = 20;
-static constexpr size_t SIGNALRGB_MAX_PAYLOAD = 131072;
+static constexpr size_t SIGNALRGB_FULL_FRAME_BYTES = static_cast<size_t>(DISPLAY_WIDTH) * DISPLAY_HEIGHT * 2;
+static constexpr size_t SIGNALRGB_MAX_PAYLOAD = SIGNALRGB_VIDEO_FAST_PATH ? SIGNALRGB_FULL_FRAME_BYTES : 131072;
 static constexpr size_t SIGNALRGB_RAWUSB_RX_BUFFER = 32768;
 static constexpr size_t USB_APP_MAX_PAYLOAD = 8192;
 static constexpr uint8_t SIGNAL_STATUS_OK = 0x00;
@@ -208,6 +223,7 @@ static constexpr uint8_t SIGNAL_STATUS_BAD_LENGTH = 0x03;
 static constexpr uint8_t SIGNAL_STATUS_BAD_CHECKSUM = 0x04;
 static constexpr uint8_t SIGNAL_STATUS_RENDER_FAILED = 0x05;
 static uint8_t signalHeader[SIGNALRGB_HEADER_SIZE];
+static uint8_t signalStreamBuffer[SIGNALRGB_VIDEO_FAST_PATH ? 4096 : 512];
 static uint8_t* signalPayload = nullptr;
 static size_t signalHeaderLen = 0;
 static size_t signalPayloadLen = 0;
@@ -402,14 +418,26 @@ static void handleSignalHeader() {
 
   uint8_t command = signalHeader[4];
   signalStatusRequested = (signalHeader[5] & 0x80) != 0;
-  if (command != 0x03 && command != 0x05) {
+  if (command == 0x02) {
+    flushSignalRgbFrame();
+    lastSignalRgbMs = millis();
+    signalLastRenderMs = lastSignalRgbMs;
+    sendSignalRgbStatus(SIGNAL_STATUS_OK, command, 0);
+    resetSignalParser();
+    return;
+  }
+
+  if (command != 0x01 && command != 0x03 && command != 0x05 && command != 0x06 && command != 0x07 && command != 0x08) {
     sendSignalRgbStatus(SIGNAL_STATUS_BAD_COMMAND, command, 0);
     resetSignalParser();
     return;
   }
 
-  if (command == 0x03) {
+  if (command == 0x01 || command == 0x03) {
     uint8_t scale = signalHeader[5] & 0x7F;
+    if (command == 0x01) {
+      scale = 1;
+    }
     uint16_t x = readLe16(signalHeader + 8);
     uint16_t y = readLe16(signalHeader + 10);
     uint16_t width = readLe16(signalHeader + 12);
@@ -436,16 +464,23 @@ static void handleSignalHeader() {
   }
 
   signalExpectedPayloadLen = readLe32(signalHeader + 16);
+  if (command == 0x06 && signalExpectedPayloadLen != SIGNALRGB_FULL_FRAME_BYTES) {
+    sendSignalRgbStatus(SIGNAL_STATUS_BAD_LENGTH, command, static_cast<uint16_t>(min(signalExpectedPayloadLen, static_cast<size_t>(0xFFFF))));
+    resetSignalParser();
+    return;
+  }
   if (signalExpectedPayloadLen == 0 ||
       signalExpectedPayloadLen > SIGNALRGB_MAX_PAYLOAD ||
-      !signalPayload) {
+      (command != 0x08 && !signalPayload)) {
     sendSignalRgbStatus(SIGNAL_STATUS_BAD_LENGTH, command, static_cast<uint16_t>(min(signalExpectedPayloadLen, static_cast<size_t>(0xFFFF))));
     resetSignalParser();
     return;
   }
   signalRectCommand = command;
-  signalDropPayload = signalLastRenderMs != 0 &&
-                      millis() - signalLastRenderMs < SIGNALRGB_MIN_RENDER_INTERVAL_MS;
+  signalDropPayload = command != 0x07 &&
+                      command != 0x08 &&
+                      signalLastRenderMs != 0 &&
+                      millis() - signalLastRenderMs < SIGNALRGB_MIN_RENDER_INTERVAL_MS_VALUE;
   signalPayloadLen = 0;
   signalPayloadChecksum = 0;
   signalPayloadStartMs = millis();
@@ -559,15 +594,19 @@ static void handleSignalPayload() {
     return;
   }
   bool drawn = false;
-  if (signalRectCommand == 0x03) {
+  if (signalRectCommand == 0x01 || signalRectCommand == 0x03) {
     uint16_t x = readLe16(signalHeader + 8);
     uint16_t y = readLe16(signalHeader + 10);
     uint16_t width = readLe16(signalHeader + 12);
     uint16_t height = readLe16(signalHeader + 14);
     drawn = drawSignalRgb565RectScaled(x, y, width, height, signalRectScale, signalPayload, signalExpectedPayloadLen);
+  } else if (signalRectCommand == 0x06) {
+    drawn = drawSignalRgb565Frame(signalPayload, signalExpectedPayloadLen);
     if (drawn) {
       flushSignalRgbFrame();
     }
+  } else if (signalRectCommand == 0x07) {
+    drawn = true;
   } else {
     drawn = drawSignalJpegFrame(signalPayload, signalExpectedPayloadLen);
   }
@@ -720,15 +759,39 @@ static void processSignalRgbByte(uint8_t value) {
 template <typename StreamType>
 static void processSignalRgbStream(StreamType& stream) {
 #if SIGNALRGB_VIDEO_FAST_PATH
-  uint8_t buffer[4096];
+  uint8_t* buffer = signalStreamBuffer;
 #else
-  uint8_t buffer[512];
+  uint8_t* buffer = signalStreamBuffer;
 #endif
   while (stream.available() > 0) {
+    if (signalParserState == SIGNAL_READ_PAYLOAD && signalRectCommand == 0x08 && signalPayloadLen < signalExpectedPayloadLen) {
+      noteSignalRgbRx();
+      size_t remaining = signalExpectedPayloadLen - signalPayloadLen;
+      size_t toRead = min(remaining, sizeof(signalStreamBuffer));
+      int available = stream.available();
+      if (available > 0) {
+        toRead = min(toRead, static_cast<size_t>(available));
+      }
+      size_t readLen = stream.read(buffer, toRead);
+      if (readLen == 0) {
+        break;
+      }
+      signalPayloadLen += readLen;
+      if (signalPayloadLen == signalExpectedPayloadLen) {
+        setSignalRxStats(static_cast<uint32_t>(signalExpectedPayloadLen), millis() - signalPayloadStartMs);
+        if (signalStatusRequested) {
+          sendSignalRgbStatus(SIGNAL_STATUS_OK, signalRectCommand,
+                              static_cast<uint16_t>(min(signalExpectedPayloadLen, static_cast<size_t>(0xFFFF))));
+        }
+        resetSignalParser();
+      }
+      continue;
+    }
+
     if (signalParserState == SIGNAL_READ_PAYLOAD && signalPayload && signalPayloadLen < signalExpectedPayloadLen) {
       noteSignalRgbRx();
       size_t remaining = signalExpectedPayloadLen - signalPayloadLen;
-      size_t toRead = min(remaining, sizeof(buffer));
+      size_t toRead = min(remaining, sizeof(signalStreamBuffer));
       int available = stream.available();
       if (available > 0) {
         toRead = min(toRead, static_cast<size_t>(available));
@@ -745,7 +808,7 @@ static void processSignalRgbStream(StreamType& stream) {
       continue;
     }
 
-    size_t readLen = stream.read(buffer, min(sizeof(buffer), static_cast<size_t>(stream.available())));
+    size_t readLen = stream.read(buffer, min(sizeof(signalStreamBuffer), static_cast<size_t>(stream.available())));
     if (readLen == 0) {
       break;
     }
@@ -758,6 +821,14 @@ static void processSignalRgbStream(StreamType& stream) {
 static void processSignalRgbSerial() {
   processSignalRgbStream(Serial);
 }
+
+#if SIGNALRGB_RAWUSB_EXPERIMENT && RAWUSB_STREAM_ENABLED
+extern "C" bool open_aio_vendor_rx_cb(uint8_t itf) {
+  DirectVendorStream stream{itf};
+  processSignalRgbStream(stream);
+  return true;
+}
+#endif
 
 static bool signalRgbActive() {
   return (lastSignalRgbMs != 0 && millis() - lastSignalRgbMs < SIGNALRGB_TIMEOUT_MS) ||

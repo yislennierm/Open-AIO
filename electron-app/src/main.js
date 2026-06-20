@@ -9,12 +9,20 @@ const API_KEY = process.env.COOLER_API_KEY || "change-me";
 const CLIENT_ID = `edge-renderer-electron-${process.pid}`;
 const FPS = Number(process.env.COOLER_ELECTRON_FPS || 30);
 const JPEG_QUALITY = Math.max(1, Math.min(90, Number(process.env.COOLER_ELECTRON_QUALITY || 18)));
+const USB_TRANSPORT_OVERRIDE = process.env.OPEN_AIO_USB_TRANSPORT;
+const STREAM_FORMAT = ["rgb565-tiles", "rgb565-full"].includes(process.env.OPEN_AIO_STREAM_FORMAT)
+  ? process.env.OPEN_AIO_STREAM_FORMAT
+  : "jpeg";
+const DEFAULT_USB_TRANSPORT = USB_TRANSPORT_OVERRIDE === "native" ? "native" : "python";
+const RGB565_TILE_SIZE = 120;
+const NATIVE_FAILURE_FALLBACK_THRESHOLD = STREAM_FORMAT.startsWith("rgb565-") ? Number.POSITIVE_INFINITY : 20;
 const EDITOR_URL = `${SERVER_URL}/nzxt-esc/`;
 const RENDER_URL = `${SERVER_URL}/nzxt-esc/?kraken=1&mockLcd=480&mockShape=circle&streamRenderer=1`;
 const LIVE_PREVIEW_URL = `${SERVER_URL}/nzxt-esc/?kraken=1&mockLcd=480&mockShape=circle`;
 
 let editorWindow = null;
 let renderWindow = null;
+let renderReady = false;
 let tray = null;
 let streaming = false;
 let lastPostAt = 0;
@@ -26,7 +34,22 @@ let heartbeatTimer = null;
 let thumbnailTimer = null;
 let thumbnailRunning = false;
 let streamTransform = "normal";
+let usbTransport = DEFAULT_USB_TRANSPORT;
 let streamTransformCssKey = null;
+let nativeStream = null;
+let nativeFrameCount = 0;
+let nativeFailedCount = 0;
+let nativeWriteMsTotal = 0;
+let nativeConsecutiveFailures = 0;
+let captureMsTotal = 0;
+let encodeMsTotal = 0;
+let deviceTimingSampleCount = 0;
+let deviceRxMsTotal = 0;
+let deviceDecodeMsTotal = 0;
+let deviceFlushMsTotal = 0;
+let previousRgb565Frame = null;
+let rgb565BytesTotal = 0;
+let rgb565TileCount = 0;
 const LOG_DIR = path.join(ROOT, "logs");
 const LOG_FILE = path.join(LOG_DIR, "electron-stream.log");
 const SETTINGS_FILE = path.join(__dirname, "..", "settings.json");
@@ -35,6 +58,8 @@ const SERVER_PYTHON = path.join(SERVER_DIR, ".venv", "Scripts", "python.exe");
 const AGENT_DIR = path.join(ROOT, "pc-agent");
 const AGENT_PYTHON = path.join(AGENT_DIR, ".venv", "Scripts", "python.exe");
 const AGENT_STATUS_FILE = path.join(AGENT_DIR, "logs", "status.json");
+const DIRECT_USB_OWNER_FILE = path.join(AGENT_DIR, "logs", "designer-usb-owner.json");
+const NATIVE_SERVICE_EXE = path.join(ROOT, "native", "open-aio-core", "target", "release", "open-aio-service.exe");
 const DEPLOY_SIGNALRGB_SCRIPT = path.join(ROOT, "scripts", "deploy_signalrgb_plugin.ps1");
 const SIGNALRGB_PLUGIN_DIR = path.join(app.getPath("documents"), "WhirlwindFX", "Plugins");
 const WEB_PARTITION = "persist:cooler-display";
@@ -47,6 +72,7 @@ let backendTimer = null;
 let backendStatus = {
   server: "checking",
   agent: "checking",
+  native: "checking",
   message: "Checking backend",
 };
 const STREAM_TRANSFORMS = {
@@ -55,6 +81,10 @@ const STREAM_TRANSFORMS = {
   flipX: { label: "Mirror Left/Right", css: "body { transform: scaleX(-1) !important; }" },
   flipY: { label: "Flip Top/Bottom", css: "body { transform: scaleY(-1) !important; }" },
   invertColors: { label: "Invert Colors", css: "html { filter: invert(1) !important; }" },
+};
+const USB_TRANSPORTS = {
+  python: { label: "Python Agent" },
+  native: { label: "Native Helper" },
 };
 const TRANSPARENT_ICON_PNG_BASE64 = "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";
 const SOLID_ICON_PNG_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAiISURBVHhe7Vr/U1TXFc9fIu8tLF9itAZsbGymJnGamMbUJLXxW5XUGc2QoGMap8mQMQ1JbGpjW8dpTOyXyZim1vBFBQQBF1m+CLt82V0QFhQRAwvIAuoSGxYj/XTOmvf27n3v7b7dfSAZODOfX97Ou3s+n3vvOeee+x4Qkh7EfMYD/IP5hgUB+AfzDQsC8A/mGxYE4B/MFFIWP4yNWzJx6PDHAVRUWtBoa5JhramTf8vcvhM/fPQnijFmAjMqwGOrfoq39+UGyMZine4uHPjoz/jZcy8qxjYKMyLAC+s3weF08XzisgGPB7v27FX8V7wwVACa8eKSUt532Rxfj+Mvnq4AsnuasaHzQgAbOxqR2dmEQ/09AVSMjfCvykbCksD8f8cKQwSg/X3k07/D7/eHOOufvovym4N442ozljtLkWA/iQT7KSTYTiOhsQgJjcUQGs5AuFAK4UIZhPqzEOrKIdRVILXegt3uduRfH4Lv229DxiUjoZemr1D4Ei3iFoCcoCDGW/lND564WI5FTQVIaCqMirxYWwmx5hzEGgtEaxVSa6041NcH//R0yH/Qtlj91LMKn6JBXAJQcCInWHPcHsNL3dVY1JxvCHnReh5idTVM1TVYUW/Dvz3DIf/n801gZ9YuhW96EbMA9Kf8ks/td2JRc96MkDedr4XpfB1MVfV4pa1LsS0oW/A+6kFMAtDMs+Rpr++4Uj8r5E2WC0i0NGCtrR0D34ROQCxZImoBqEBhl/3A1G2scVfoJ//5EQh790BY+3MG6yA8uw7i7t0Qc3MhlpWGJZ94zobESjvSz7fCNj4h+0KTEm2GiEoAivZswKOZ10W+5BiE7dsgpP1AMaYWxM2ZEP90WJN8UmUTkiqakW5xovf2pOyT1zsaSMf8eFqISgBKdaxtu1wTnvzZLyBs36oYJxqI6zfDVGxRJZ9U3oKk8lY8bu2A139H9otqBX4cLegWgNINu+8jBryjH0FYHn+eDiDjUZgO/UOVvPmsA+YyJ37ZcBn+6f/J/umNB7oFYOv5xomRsOSF17MU7xsB087XkXSmQUHeXOaCubQNn10dlX2krUBblh+Dhy4BKLCwtqazUpN8Qs5vFO+HYGkGhC1bIea+C/Ho0Xv49G8QDxyE+MouCBk/Ur7DQNywXZW8ubQdD5V1YNQfTI/vffAHxfs8dAlApzLJqMLTJP/HdxTvyliaAXFfDkRLWcRUJx786z2h+DG+Q+IHHyvIm89cRPKZTuzvuC77qmcVRBSA9r5kFPVXtpepk6eApxXlX3gRYklBVHk+saAC4roNyrEIS5bDfMKqIJ9c4saS0u6QVRApFkQUgCosyfJG+9TJNxZB2KqRf1/NirrIYaO9ad8B5Zi0FZ7bpCCfXNKF5OJuHHQHY0F+4SnFuywiCsDm/ewrdlXyCbWF6hF/y6/iIi9Fe9PLKrV++kqYj9cpyCcXXcKaqmuyz3RWULzLIKwAdNKTjJb/ktZiJXmpwjtXCGFPdnAbZKyAWF4UN/lAwCu2Q1yxSvbLtCUL5ny7KvnkostIOd2D3olgXUCtOJ6bLgFo/0jWOOHVJs/W9nmf39vz7/3OGPLfRfukI/mBvZ908F+qy54ln3LqCo5euin7TgUcz02XANSglIy6OBHJR3mwWWt3YXNrR+BgE468HO1Pt+gin3KqF681BrMBNU94broE+OL4CXmQnD6XYeSX1dhQMxacITLnra/xVP1FbfIaAU+NfMrJq3jJOiSPHa40DisAtaol23HJbgh5mnnbjVvyuKzRoWZxpTNu8ikn+/DkWebE6vEouOkSgC2Anmm3GkL+F83t8phqluXojZt8SuE1pBb2h4zLc9MlAFVSkvYYYmbPAW8fV29IY7xdrhn2BDyqQUDGJ28K4+rdUQOK8CV3qvyAKud1rjJU7T/taNbHlPN3mzrN4R8akFor1KrJA4rAFsEbeywxU2eUt2DlmZ4uFaWZHScXWnpNIT8YyXB5imtZJ6bLgGojJRsb09b3OSlVLfe5g5pYJAR+T3Orwwhn5o/iOcrg9uXYhnPTZcAbB1w4NolQ8hLeT7d4sL+Lk9gz+93Dxo280Q+NW8IO2pvyL5TNuO56RKALjYly7/uMYy8EXk+HPnUvGF86Aw2S6me4bnpEoA9ClMf/vtCPu3L67CPTMm+7/1tjoKbLgEIbAt8U1vL94L8I4Ve2WeycHeIEQX452fH5IE+6e+b8+TTTowgxx5c/pTJeE5RCUBHSckGJifnPPm0E15YBoLLP9KVWUQBqICgpoJk7/f0zGny2XU+2VeySLfHEQUgUHdVMu/UFNKs9XOSfNp/RtF1I9gPDHcMlqBLAFoFbFn8ybWBOUk+uzb0nlDPh1a6BCDQdbg8+PR04FQ3l8g/UjAOz+3gBxQUvHkOatAtAIE9G3in7mBVvXNOkF/25TjsI8HSmmr/cKmPRVQC0JGSDYjUxVlsabmv5NOOj+FYd/B2mCyaL0aiEoBAaZG9JC0ZHsfiSsd9I/9h639DyNP5hfc5HKIWgMCeEcjoI4UMS9usk+dnni5weV8jISYBCGzDlIz6eU/XdM0KeQp47J4noyOv3n3PImYBCOy1GZnvzl3sdw/NKHlKdb2+YKuLjGY+FvKEuAQgqH0t5vnmDt5yDRpKPrPqFlyjyg8mo93zPOIWgKD2vSCZ2+fHW45hrCzvjYn8snwv3mjwhdT2ksX7faAEQwQgULVIW4JNk6y5xifx+/YxbK0dwvNVg6rkV5eOYFv1ON5t8cHiUe8bklGRE+uS52GYABLIMbXvhrXMNa6cXS2jva7V3o4VhgsggepwSpfs7VIsRtGd9nmkU12smDEBWND2oJtm6jJTOc3eOLFGcYR+p5km8fQcZuLFrAgQDlRZal1azAbuuwD3GwsC8A/mGxYE4B/MN/wfhAtooERsXrMAAAAASUVORK5CYII=";
@@ -78,12 +108,15 @@ function loadSettings() {
     if (settings && STREAM_TRANSFORMS[settings.streamTransform]) {
       streamTransform = settings.streamTransform;
     }
+    if (!USB_TRANSPORT_OVERRIDE && settings && USB_TRANSPORTS[settings.usbTransport]) {
+      usbTransport = settings.usbTransport;
+    }
   } catch {}
 }
 
 function saveSettings() {
   try {
-    fs.writeFileSync(SETTINGS_FILE, JSON.stringify({ streamTransform }, null, 2), "utf8");
+    fs.writeFileSync(SETTINGS_FILE, JSON.stringify({ streamTransform, usbTransport }, null, 2), "utf8");
   } catch (error) {
     log("[settings] save failed", error.message);
   }
@@ -122,6 +155,36 @@ function setStreamTransform(nextTransform) {
   saveSettings();
   buildMenu();
   applyStreamTransform().catch((error) => log("[electron-stream] transform failed", error.message));
+}
+
+function setUsbTransport(nextTransport) {
+  if (!USB_TRANSPORTS[nextTransport]) return;
+  usbTransport = nextTransport;
+  nativeConsecutiveFailures = 0;
+  saveSettings();
+  if (nextTransport !== "native") {
+    stopNativeStream();
+    writeDirectUsbOwner(false);
+  }
+  buildMenu();
+  log("[electron-stream] USB transport set", usbTransport);
+}
+
+function writeDirectUsbOwner(active) {
+  try {
+    fs.mkdirSync(path.dirname(DIRECT_USB_OWNER_FILE), { recursive: true });
+    if (!active) {
+      fs.rmSync(DIRECT_USB_OWNER_FILE, { force: true });
+      return;
+    }
+    fs.writeFileSync(DIRECT_USB_OWNER_FILE, JSON.stringify({
+      owner: "electron-native-helper",
+      updated_at: Date.now() / 1000,
+      ttl_seconds: 4,
+    }, null, 2), "utf8");
+  } catch (error) {
+    log("[native-stream] owner heartbeat failed", error.message);
+  }
 }
 
 function installRequestLogging() {
@@ -270,6 +333,71 @@ function runPowerShellScript(label, scriptPath, args = []) {
   });
 }
 
+function runNativeHelper(args = [], timeoutMs = 2000) {
+  return new Promise((resolve) => {
+    if (!fs.existsSync(NATIVE_SERVICE_EXE)) {
+      resolve({ ok: false, status: "missing", error: `missing: ${NATIVE_SERVICE_EXE}` });
+      return;
+    }
+    const child = spawn(NATIVE_SERVICE_EXE, args, {
+      cwd: ROOT,
+      windowsHide: true,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let stdout = "";
+    let stderr = "";
+    const timer = setTimeout(() => {
+      child.kill();
+      resolve({ ok: false, status: "timeout", error: `timeout after ${timeoutMs}ms` });
+    }, timeoutMs);
+    child.stdout.on("data", (chunk) => { stdout += chunk.toString("utf8"); });
+    child.stderr.on("data", (chunk) => { stderr += chunk.toString("utf8"); });
+    child.on("error", (error) => {
+      clearTimeout(timer);
+      resolve({ ok: false, status: "spawn_failed", error: error.message });
+    });
+    child.on("exit", (code) => {
+      clearTimeout(timer);
+      const text = (stdout || stderr).trim();
+      let payload = null;
+      try {
+        payload = text ? JSON.parse(text.split(/\r?\n/).at(-1)) : null;
+      } catch {}
+      resolve({
+        ok: code === 0 && (!payload || payload.ok !== false),
+        status: code === 0 ? "ok" : "failed",
+        code,
+        payload,
+        stdout: stdout.trim(),
+        stderr: stderr.trim(),
+      });
+    });
+  });
+}
+
+async function refreshNativeHelperStatus() {
+  const result = await runNativeHelper(["health"], 2000);
+  backendStatus.native = result.ok ? "ok" : result.status || "missing";
+  if (result.ok) {
+    log("[native-helper] health ok");
+  } else {
+    log("[native-helper] health failed", result.error || result.stderr || result.status);
+  }
+  return result;
+}
+
+async function showNativeHelperHealth() {
+  backendStatus.message = "Checking native helper";
+  buildMenu();
+  const result = await runNativeHelper(["protocol-info"], 2000);
+  backendStatus.native = result.ok ? "ok" : result.status || "missing";
+  backendStatus.message = result.ok
+    ? `Native helper ok: ${result.stdout || "protocol-info"}`
+    : `Native helper ${backendStatus.native}`;
+  log("[native-helper] protocol-info", result);
+  buildMenu();
+}
+
 async function deploySignalRgbPlugin() {
   try {
     backendStatus.message = "Deploying SignalRGB plugin";
@@ -340,8 +468,9 @@ async function ensureAgent(status) {
 }
 
 async function ensureBackend() {
-  backendStatus = { server: "checking", agent: "checking", message: "Checking backend" };
+  backendStatus = { server: "checking", agent: "checking", native: "checking", message: "Checking backend" };
   buildMenu();
+  await refreshNativeHelperStatus();
   const status = await ensureServer();
   if (status) {
     await ensureAgent(status);
@@ -354,15 +483,15 @@ async function ensureBackend() {
 async function refreshBackendStatus() {
   const status = await fetchCamStatus();
   if (!status) {
-    backendStatus = { server: "missing", agent: "unknown", message: "Server unavailable" };
+    backendStatus.server = "missing";
+    backendStatus.agent = "unknown";
+    backendStatus.message = "Server unavailable";
   } else {
     const agentOk = agentIsHealthy(status);
     const usb = status.agent && status.agent.usb_status ? status.agent.usb_status : "unknown";
-    backendStatus = {
-      server: "ok",
-      agent: agentOk ? "ok" : "starting",
-      message: agentOk ? `USB ${usb}` : "Agent not healthy yet",
-    };
+    backendStatus.server = "ok";
+    backendStatus.agent = agentOk ? "ok" : "starting";
+    backendStatus.message = agentOk ? `USB ${usb}` : "Agent not healthy yet";
     if (!agentOk && !managedAgent) {
       ensureAgent(status).catch((error) => log("[backend] agent recovery failed", error.message));
     }
@@ -385,6 +514,7 @@ async function restartManagedBackend() {
 }
 
 async function postPreviewActive(active) {
+  writeDirectUsbOwner(active && usbTransport === "native");
   try {
     await fetch(`${SERVER_URL}/api/v1/designer/preview-active`, {
       method: "POST",
@@ -411,22 +541,279 @@ async function postFrame(jpeg) {
   }
 }
 
+function ensureNativeStream() {
+  if (nativeStream && nativeStream.child && !nativeStream.exited) return nativeStream;
+  if (!fs.existsSync(NATIVE_SERVICE_EXE)) {
+    throw new Error(`native helper missing: ${NATIVE_SERVICE_EXE}`);
+  }
+  const child = spawn(NATIVE_SERVICE_EXE, ["stdio"], {
+    cwd: ROOT,
+    windowsHide: true,
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+  const stream = {
+    child,
+    exited: false,
+    stdoutBuffer: "",
+    pending: null,
+  };
+  child.stdout.on("data", (chunk) => {
+    stream.stdoutBuffer += chunk.toString("utf8");
+    while (stream.stdoutBuffer.includes("\n")) {
+      const index = stream.stdoutBuffer.indexOf("\n");
+      const line = stream.stdoutBuffer.slice(0, index).trim();
+      stream.stdoutBuffer = stream.stdoutBuffer.slice(index + 1);
+      if (!line) continue;
+      let payload = null;
+      try {
+        payload = JSON.parse(line);
+      } catch {
+        payload = { ok: false, status: "bad_json", error: line };
+      }
+      const pending = stream.pending;
+      stream.pending = null;
+      if (pending) pending.resolve(payload);
+    }
+  });
+  child.stderr.on("data", (chunk) => log("[native-stream:error]", chunk.toString("utf8").trim()));
+  child.on("error", (error) => {
+    stream.exited = true;
+    if (stream.pending) {
+      stream.pending.resolve({ ok: false, status: "spawn_failed", error: error.message });
+      stream.pending = null;
+    }
+    log("[native-stream] spawn failed", error.message);
+  });
+  child.on("exit", (code, signal) => {
+    stream.exited = true;
+    if (stream.pending) {
+      stream.pending.resolve({ ok: false, status: "exited", error: `native helper exited ${code ?? signal}` });
+      stream.pending = null;
+    }
+    if (nativeStream === stream) nativeStream = null;
+    log("[native-stream] exited", { code, signal });
+  });
+  nativeStream = stream;
+  log("[native-stream] started", { pid: child.pid });
+  return stream;
+}
+
+function stopNativeStream() {
+  if (!nativeStream) return;
+  try {
+    nativeStream.child.stdin.end();
+    nativeStream.child.kill();
+  } catch {}
+  nativeStream = null;
+}
+
+async function sendNativePacket(command, payload, flags = 0) {
+  writeDirectUsbOwner(true);
+  const stream = ensureNativeStream();
+  if (stream.pending) {
+    return { ok: false, status: "busy", error: "native frame already in flight" };
+  }
+  const header = Buffer.alloc(10);
+  header.write("OAIO", 0, "ascii");
+  header[4] = command;
+  header[5] = flags;
+  header.writeUInt32LE(payload.length, 6);
+  const packet = payload.length ? Buffer.concat([header, Buffer.from(payload)]) : header;
+  const resultPromise = new Promise((resolve) => {
+    stream.pending = { resolve };
+  });
+  if (!stream.child.stdin.write(packet)) {
+    await new Promise((resolve) => stream.child.stdin.once("drain", resolve));
+  }
+  return resultPromise;
+}
+
+async function sendNativeFrame(jpeg, sampleDeviceTiming = false) {
+  return sendNativePacket(0x01, jpeg, sampleDeviceTiming ? 0x80 : 0x00);
+}
+
+async function sendNativeRgb565Rect(x, y, width, height, pixels) {
+  const rectHeader = Buffer.alloc(8);
+  rectHeader.writeUInt16LE(x, 0);
+  rectHeader.writeUInt16LE(y, 2);
+  rectHeader.writeUInt16LE(width, 4);
+  rectHeader.writeUInt16LE(height, 6);
+  return sendNativePacket(0x02, Buffer.concat([rectHeader, pixels]), 0x00);
+}
+
+async function sendNativeFlush() {
+  return sendNativePacket(0x03, Buffer.alloc(0), 0x00);
+}
+
+async function sendNativeRgb565Frame(pixels) {
+  return sendNativePacket(0x04, pixels, 0x80);
+}
+
+function bitmapToRgb565(bitmap, width, height) {
+  const rgb565 = Buffer.alloc(width * height * 2);
+  for (let i = 0, out = 0; i < bitmap.length && out < rgb565.length; i += 4, out += 2) {
+    const b = bitmap[i];
+    const g = bitmap[i + 1];
+    const r = bitmap[i + 2];
+    const value = ((r & 0xf8) << 8) | ((g & 0xfc) << 3) | (b >> 3);
+    rgb565[out] = value & 0xff;
+    rgb565[out + 1] = (value >> 8) & 0xff;
+  }
+  return rgb565;
+}
+
+function extractRgb565Tile(frame, width, x, y, tileWidth, tileHeight) {
+  const tile = Buffer.alloc(tileWidth * tileHeight * 2);
+  for (let row = 0; row < tileHeight; row += 1) {
+    const sourceStart = ((y + row) * width + x) * 2;
+    frame.copy(tile, row * tileWidth * 2, sourceStart, sourceStart + tileWidth * 2);
+  }
+  return tile;
+}
+
+function tileChanged(current, previous, width, x, y, tileWidth, tileHeight) {
+  if (!previous) return true;
+  for (let row = 0; row < tileHeight; row += 1) {
+    const start = ((y + row) * width + x) * 2;
+    const end = start + tileWidth * 2;
+    if (current.compare(previous, start, end, start, end) !== 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+async function sendRgb565Tiles(image) {
+  const width = 480;
+  const height = 480;
+  const rgb565 = bitmapToRgb565(image.toBitmap(), width, height);
+  let sentTiles = 0;
+  let sentBytes = 0;
+  let failed = 0;
+  let writeMs = 0;
+  for (let y = 0; y < height; y += RGB565_TILE_SIZE) {
+    for (let x = 0; x < width; x += RGB565_TILE_SIZE) {
+      const tileWidth = Math.min(RGB565_TILE_SIZE, width - x);
+      const tileHeight = Math.min(RGB565_TILE_SIZE, height - y);
+      if (!tileChanged(rgb565, previousRgb565Frame, width, x, y, tileWidth, tileHeight)) {
+        continue;
+      }
+      const tile = extractRgb565Tile(rgb565, width, x, y, tileWidth, tileHeight);
+      const result = await sendNativeRgb565Rect(x, y, tileWidth, tileHeight, tile);
+      if (result && result.ok) {
+        sentTiles += 1;
+        sentBytes += tile.length;
+        writeMs += Number(result.writeMs || 0);
+      } else {
+        failed += 1;
+        log("[native-stream] rgb565 tile failed", result);
+      }
+    }
+  }
+  if (sentTiles > 0) {
+    const flush = await sendNativeFlush();
+    if (flush && flush.ok) {
+      writeMs += Number(flush.writeMs || 0);
+    } else {
+      failed += 1;
+      log("[native-stream] rgb565 flush failed", flush);
+    }
+  }
+  previousRgb565Frame = rgb565;
+  return { ok: failed === 0, sentTiles, sentBytes, failed, writeMs };
+}
+
+async function sendRgb565FullFrame(image) {
+  const rgb565 = bitmapToRgb565(image.toBitmap(), 480, 480);
+  const result = await sendNativeRgb565Frame(rgb565);
+  return {
+    ok: Boolean(result && result.ok),
+    sentBytes: rgb565.length,
+    sentTiles: 1,
+    failed: result && result.ok ? 0 : 1,
+    writeMs: Number(result?.writeMs || 0),
+  };
+}
+
 async function captureAndPostFrame() {
-  if (!streaming || posting || !renderWindow || renderWindow.isDestroyed()) return;
+  if (!streaming || !renderReady || posting || !renderWindow || renderWindow.isDestroyed()) return;
   const now = Date.now();
   const minInterval = 1000 / FPS;
   if (now - lastPostAt < minInterval) return;
   lastPostAt = now;
   posting = true;
   try {
+    const captureStarted = Date.now();
     const image = await renderWindow.webContents.capturePage({ x: 0, y: 0, width: 480, height: 480 });
-    const jpeg = image.resize({ width: 480, height: 480 }).toJPEG(JPEG_QUALITY);
-    await postFrame(jpeg);
+    const captureMs = Date.now() - captureStarted;
+    const encodeStarted = Date.now();
+    const useRgb565 = usbTransport === "native" && STREAM_FORMAT.startsWith("rgb565-");
+    const jpeg = useRgb565 ? null : image.resize({ width: 480, height: 480 }).toJPEG(JPEG_QUALITY);
+    const encodeMs = Date.now() - encodeStarted;
+    captureMsTotal += captureMs;
+    encodeMsTotal += encodeMs;
+    if (useRgb565) {
+      const result = STREAM_FORMAT === "rgb565-full"
+        ? await sendRgb565FullFrame(image)
+        : await sendRgb565Tiles(image);
+      if (result && result.ok) {
+        nativeConsecutiveFailures = 0;
+        nativeFrameCount += 1;
+        nativeWriteMsTotal += Number(result.writeMs || 0);
+        rgb565BytesTotal += Number(result.sentBytes || 0);
+        rgb565TileCount += Number(result.sentTiles || 0);
+      } else {
+        nativeConsecutiveFailures += 1;
+        nativeFailedCount += Number(result?.failed || 1);
+        if (nativeConsecutiveFailures >= NATIVE_FAILURE_FALLBACK_THRESHOLD) {
+          log("[native-stream] falling back to Python transport after repeated RGB565 failures");
+          setUsbTransport("python");
+        }
+      }
+    } else if (usbTransport === "native") {
+      const sampleDeviceTiming = frameCount % Math.max(1, Math.round(FPS)) === 0;
+      const result = await sendNativeFrame(jpeg, sampleDeviceTiming);
+      if (result && result.ok) {
+        nativeConsecutiveFailures = 0;
+        nativeFrameCount += 1;
+        nativeWriteMsTotal += Number(result.writeMs || 0);
+        if (result.rxMs != null || result.decodeMs != null || result.flushMs != null) {
+          deviceTimingSampleCount += 1;
+          deviceRxMsTotal += Number(result.rxMs || 0);
+          deviceDecodeMsTotal += Number(result.decodeMs || 0);
+          deviceFlushMsTotal += Number(result.flushMs || 0);
+        }
+      } else {
+        nativeConsecutiveFailures += 1;
+        nativeFailedCount += 1;
+        log("[native-stream] frame failed", result);
+        if (nativeConsecutiveFailures >= NATIVE_FAILURE_FALLBACK_THRESHOLD) {
+          log("[native-stream] falling back to Python transport after repeated native failures");
+          setUsbTransport("python");
+        }
+      }
+    } else {
+      await postFrame(jpeg);
+    }
     frameCount += 1;
     if (now - lastStatsAt >= 5000) {
       const fps = (frameCount * 1000) / (now - lastStatsAt);
-      log(`[electron-stream] fps=${fps.toFixed(1)} jpeg_kb=${(jpeg.length / 1024).toFixed(1)}`);
+      const nativeSuffix = usbTransport === "native"
+        ? ` format=${STREAM_FORMAT} native_ok=${nativeFrameCount} native_failed=${nativeFailedCount} native_avg_write_ms=${nativeFrameCount ? (nativeWriteMsTotal / nativeFrameCount).toFixed(1) : "0.0"} rgb565_kb=${nativeFrameCount ? (rgb565BytesTotal / nativeFrameCount / 1024).toFixed(1) : "0.0"} rgb565_tiles=${nativeFrameCount ? (rgb565TileCount / nativeFrameCount).toFixed(1) : "0.0"} device_rx_ms=${deviceTimingSampleCount ? (deviceRxMsTotal / deviceTimingSampleCount).toFixed(1) : "n/a"} device_decode_ms=${deviceTimingSampleCount ? (deviceDecodeMsTotal / deviceTimingSampleCount).toFixed(1) : "n/a"} device_flush_ms=${deviceTimingSampleCount ? (deviceFlushMsTotal / deviceTimingSampleCount).toFixed(1) : "n/a"}`
+        : "";
+      log(`[electron-stream] transport=${usbTransport} fps=${fps.toFixed(1)} jpeg_kb=${jpeg ? (jpeg.length / 1024).toFixed(1) : "n/a"} capture_ms=${frameCount ? (captureMsTotal / frameCount).toFixed(1) : "0.0"} encode_ms=${frameCount ? (encodeMsTotal / frameCount).toFixed(1) : "0.0"}${nativeSuffix}`);
       frameCount = 0;
+      nativeFrameCount = 0;
+      nativeFailedCount = 0;
+      nativeWriteMsTotal = 0;
+      captureMsTotal = 0;
+      encodeMsTotal = 0;
+      deviceTimingSampleCount = 0;
+      deviceRxMsTotal = 0;
+      deviceDecodeMsTotal = 0;
+      deviceFlushMsTotal = 0;
+      rgb565BytesTotal = 0;
+      rgb565TileCount = 0;
       lastStatsAt = now;
     }
   } catch (error) {
@@ -437,7 +824,7 @@ async function captureAndPostFrame() {
 }
 
 function buildMenu() {
-  const backendLabel = `Backend: server ${backendStatus.server}, agent ${backendStatus.agent}`;
+  const backendLabel = `Backend: server ${backendStatus.server}, agent ${backendStatus.agent}, native ${backendStatus.native}`;
   const template = [
     {
       label: "Open AIO",
@@ -445,6 +832,7 @@ function buildMenu() {
         { label: backendLabel, enabled: false },
         { label: backendStatus.message || "Checking backend", enabled: false },
         { label: "Restart Managed Backend", click: restartManagedBackend },
+        { label: "Check Native Helper", click: showNativeHelperHealth },
         { label: "Open Logs Folder", click: () => shell.openPath(LOG_DIR) },
         { type: "separator" },
         { label: "Open NZXT-ESC", click: showEditor },
@@ -454,6 +842,15 @@ function buildMenu() {
         { label: "Open SignalRGB Plugin Folder", click: () => shell.openPath(SIGNALRGB_PLUGIN_DIR) },
         { type: "separator" },
         { label: streaming ? "Stop Stream" : "Start Stream", click: () => setStreaming(!streaming) },
+        {
+          label: "USB Transport",
+          submenu: Object.entries(USB_TRANSPORTS).map(([id, transport]) => ({
+            label: transport.label,
+            type: "radio",
+            checked: usbTransport === id,
+            click: () => setUsbTransport(id),
+          })),
+        },
         {
           label: "Stream Transform",
           submenu: Object.entries(STREAM_TRANSFORMS).map(([id, transform]) => ({
@@ -687,6 +1084,7 @@ function schedulePresetThumbnailRefresh(delay = 1500) {
 }
 
 function createRenderWindow() {
+  renderReady = false;
   renderWindow = new BrowserWindow({
     width: 480,
     height: 480,
@@ -705,6 +1103,7 @@ function createRenderWindow() {
   });
 
   renderWindow.webContents.on("did-finish-load", () => {
+    renderReady = true;
     log("[electron-stream] render window loaded", RENDER_URL);
     streamTransformCssKey = null;
     renderWindow.webContents.executeJavaScript(`
@@ -716,6 +1115,7 @@ function createRenderWindow() {
     applyStreamTransform().catch((error) => log("[electron-stream] transform failed", error.message));
   });
   renderWindow.webContents.on("did-fail-load", (_event, code, description, url) => {
+    renderReady = false;
     log("[electron-stream] render load failed", code, description, url);
   });
   renderWindow.webContents.on("console-message", (_event, level, message) => {
@@ -743,15 +1143,26 @@ function setStreaming(active) {
     captureTimer = null;
   }
   if (active) {
+    if (usbTransport === "native") {
+      writeDirectUsbOwner(true);
+    }
     if (!renderWindow || renderWindow.isDestroyed()) {
       createRenderWindow();
     } else {
+      renderReady = false;
       renderWindow.reload();
     }
     heartbeatTimer = setInterval(() => postPreviewActive(true), 1000);
-    captureTimer = setInterval(captureAndPostFrame, Math.max(16, Math.floor(1000 / FPS)));
+    const captureDelay = usbTransport === "native" ? 1200 : 0;
+    setTimeout(() => {
+      if (streaming && !captureTimer) {
+        captureTimer = setInterval(captureAndPostFrame, Math.max(16, Math.floor(1000 / FPS)));
+      }
+    }, captureDelay);
     log("[electron-stream] streaming started", { FPS, JPEG_QUALITY, RENDER_URL });
   } else {
+    stopNativeStream();
+    writeDirectUsbOwner(false);
     log("[electron-stream] streaming stopped");
   }
 }
@@ -770,6 +1181,7 @@ if (!gotLock) {
       app.setAppUserModelId("com.open-aio.desktop");
     }
     loadSettings();
+    writeDirectUsbOwner(usbTransport === "native");
     createTray();
     await ensureBackend();
     backendTimer = setInterval(refreshBackendStatus, 5000);
@@ -782,6 +1194,8 @@ if (!gotLock) {
 
 app.on("before-quit", () => {
   app.isQuitting = true;
+  stopNativeStream();
+  writeDirectUsbOwner(false);
   streaming = false;
   if (backendTimer) {
     clearInterval(backendTimer);

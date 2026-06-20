@@ -24,6 +24,10 @@ No NZXT CAM spoofing is used. No NZXT USB IDs are used. Open AIO can use NZXT-ES
 
 ESP32-S3 firmware for the RawUSB lab stream path. It shows the boot animation while idle and displays incoming frames when SignalRGB or the Open AIO desktop app is streaming.
 
+`firmware-idf-video-lab/`
+
+Isolated ESP-IDF video pipeline lab for the LilyGO T-RGB 2.8 inch 480x480 panel. This is separate from the active Arduino RawUSB firmware and exists to test the lowest-level display path without boot animation, app detection, presets, telemetry, or renderer state affecting performance.
+
 `electron-app/`
 
 The preferred Windows desktop shell. It launches and supervises the local server/render flow, provides the app/tray surface, and keeps the controlled renderer synchronized with the device stream.
@@ -126,6 +130,25 @@ Secrets are not committed. If Wi-Fi mode is needed, create a local ignored file:
 ```
 
 The RawUSB streaming path does not require Wi-Fi.
+
+## ESP-IDF Video Lab
+
+The ESP-IDF lab is a separate experiment and should be flashed only when intentionally testing the bare video pipeline:
+
+```powershell
+pio run -d firmware-idf-video-lab -e open-aio-idf-video-lab
+pio run -d firmware-idf-video-lab -e open-aio-idf-video-lab -t upload
+```
+
+Current lab milestone:
+
+- IDF-native build using PlatformIO.
+- LilyGO T-RGB 2.8 inch ST7701 init commands.
+- 480x480 RGB565 framebuffer.
+- ESP-IDF RGB LCD DMA scanout from PSRAM.
+- Animated panel-only test pattern.
+
+The lab intentionally has no USB stream yet. First confirm panel timing and scanout stability, then add a TinyUSB/vendor bulk receive benchmark, then connect raw/tiled RGB565 or JPEG frame input.
 
 ## SignalRGB
 

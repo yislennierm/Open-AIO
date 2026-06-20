@@ -13,6 +13,7 @@ Open AIO is a USB-first display stack for the LilyGO T-RGB 2.8 inch 480x480 ESP3
 - Electron desktop app as the preferred local control/render shell.
 - Our own sensor path through local Windows APIs, WMI, LibreHardwareMonitor-compatible sources, NVIDIA/Windows APIs, and the current Python/agent layer.
 - A native Open AIO helper/service layer replacing performance-sensitive Python/PowerShell runtime paths over time.
+- A separate ESP-IDF video lab for bare panel/USB throughput experiments before touching the working RawUSB firmware.
 - No NZXT CAM impersonation, no NZXT USB VID/PID, and no Kraken/CAM HID spoofing.
 
 The device should be a fast frame receiver. Presets, video, browser state, media, and sensors are rendered or resolved on the PC side.
@@ -39,6 +40,27 @@ Important active flags and identity:
 - USB product string: `Open AIO`
 
 Do not reintroduce the older app-detector display path into this firmware unless it is rebuilt intentionally around the lab stream timing. Preserve the smooth streaming path first.
+
+`firmware-idf-video-lab/`
+
+Isolated ESP-IDF lab for testing the lowest-level video path on the LilyGO T-RGB 2.8 inch 480x480 board. This folder must stay separate from `firmware/` so experiments cannot accidentally regress the working Open AIO/SignalRGB path.
+
+Current milestone:
+
+- Builds successfully with PlatformIO `framework = espidf`.
+- Uses LilyGO 2.8-inch ST7701 init commands.
+- Initializes the panel through a minimal native XL9555 I2C expander path.
+- Configures ESP-IDF RGB LCD scanout at 480x480 RGB565, 8 MHz pixel clock, framebuffer in PSRAM.
+- Runs an animated panel-only test pattern.
+
+Commands:
+
+```powershell
+pio run -d firmware-idf-video-lab -e open-aio-idf-video-lab
+pio run -d firmware-idf-video-lab -e open-aio-idf-video-lab -t upload
+```
+
+Do not flash this lab as a normal product firmware. Use it only when deliberately testing the bare glass-to-glass path. If the lab panel animation is not stable, fix panel init/timing before adding USB. If it is stable, next add a TinyUSB/vendor bulk receive-only benchmark, then raw/tiled RGB565 frame ingestion.
 
 `electron-app/`
 
@@ -219,6 +241,8 @@ Broad text scans can hit base64 preset blobs. Investigate hits, but distinguish 
 ## Open Work
 
 - Keep SignalRGB smooth on the RawUSB lab path.
+- Validate the ESP-IDF panel-only video lab on hardware before adding USB bulk receive.
+- Use the ESP-IDF lab to measure panel-only, USB-only, then combined receive-to-framebuffer ceilings separately.
 - Keep Electron/ESC live preview and device stream synchronized during preset edits.
 - Formalize gallery refresh/import so upstream presets can be brought in without overwriting Open AIO changes.
 - Build and validate `native/open-aio-core`, then move Electron USB frame delivery to `open-aio-service.exe`/native IPC with Python as fallback.
