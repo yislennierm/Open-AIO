@@ -83,7 +83,7 @@ The normal ESC surface is served locally at:
 http://127.0.0.1:8000/nzxt-esc/?kraken=1&mockLcd=480&mockShape=circle
 ```
 
-Use the Electron app as the preferred control surface when testing live streaming, because it manages the render process more reliably than a normal browser tab.
+Use the Electron app as the preferred control surface when testing live streaming, because it manages the render process more reliably than a normal browser tab. The Electron menu also exposes backend status, log access, stream transform controls, and SignalRGB plugin deployment.
 
 Older Python tray and experimental native sensor-bridge paths have been removed from the active tree. The desktop product path is Electron plus the Python server/agent behind it.
 
@@ -123,7 +123,13 @@ The RawUSB streaming path does not require Wi-Fi.
 
 ## SignalRGB
 
-Deploy the Open AIO Display plugin to SignalRGB's user plugins folder:
+The preferred deployment path is the Electron menu item:
+
+```text
+Open AIO -> Deploy SignalRGB Plugin
+```
+
+For manual or development deployment, run:
 
 ```powershell
 .\scripts\deploy_signalrgb_plugin.ps1

@@ -35,6 +35,8 @@ const SERVER_PYTHON = path.join(SERVER_DIR, ".venv", "Scripts", "python.exe");
 const AGENT_DIR = path.join(ROOT, "pc-agent");
 const AGENT_PYTHON = path.join(AGENT_DIR, ".venv", "Scripts", "python.exe");
 const AGENT_STATUS_FILE = path.join(AGENT_DIR, "logs", "status.json");
+const DEPLOY_SIGNALRGB_SCRIPT = path.join(ROOT, "scripts", "deploy_signalrgb_plugin.ps1");
+const SIGNALRGB_PLUGIN_DIR = path.join(app.getPath("documents"), "WhirlwindFX", "Plugins");
 const WEB_PARTITION = "persist:cooler-display";
 const ICON_PATH = path.join(__dirname, "..", "assets", "open-aio.ico");
 const ICON_PNG_BASE64 = "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";
@@ -237,6 +239,52 @@ function spawnManaged(label, exe, args, cwd, stdoutName, stderrName) {
   return child;
 }
 
+function runPowerShellScript(label, scriptPath, args = []) {
+  return new Promise((resolve, reject) => {
+    if (!fs.existsSync(scriptPath)) {
+      reject(new Error(`${label} script missing: ${scriptPath}`));
+      return;
+    }
+    const child = spawn("powershell.exe", [
+      "-NoProfile",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-File",
+      scriptPath,
+      ...args,
+    ], {
+      cwd: ROOT,
+      windowsHide: true,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    child.stdout.on("data", (chunk) => log(`[${label}]`, chunk.toString("utf8").trim()));
+    child.stderr.on("data", (chunk) => log(`[${label}:error]`, chunk.toString("utf8").trim()));
+    child.on("error", reject);
+    child.on("exit", (code) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(`${label} exited with code ${code}`));
+      }
+    });
+  });
+}
+
+async function deploySignalRgbPlugin() {
+  try {
+    backendStatus.message = "Deploying SignalRGB plugin";
+    buildMenu();
+    await runPowerShellScript("signalrgb-deploy", DEPLOY_SIGNALRGB_SCRIPT);
+    backendStatus.message = "SignalRGB plugin deployed; restart SignalRGB";
+    shell.openPath(SIGNALRGB_PLUGIN_DIR).catch(() => {});
+  } catch (error) {
+    backendStatus.message = `SignalRGB deploy failed: ${error.message}`;
+    log("[signalrgb-deploy] failed", error);
+  } finally {
+    buildMenu();
+  }
+}
+
 async function ensureServer() {
   const current = await fetchCamStatus();
   if (current) {
@@ -400,6 +448,11 @@ function buildMenu() {
         { label: "Open Logs Folder", click: () => shell.openPath(LOG_DIR) },
         { type: "separator" },
         { label: "Open NZXT-ESC", click: showEditor },
+        { label: "Open Status Page", click: () => shell.openExternal(`${SERVER_URL}/`) },
+        { type: "separator" },
+        { label: "Deploy SignalRGB Plugin", click: deploySignalRgbPlugin },
+        { label: "Open SignalRGB Plugin Folder", click: () => shell.openPath(SIGNALRGB_PLUGIN_DIR) },
+        { type: "separator" },
         { label: streaming ? "Stop Stream" : "Start Stream", click: () => setStreaming(!streaming) },
         {
           label: "Stream Transform",
@@ -700,7 +753,7 @@ if (!gotLock) {
   app.on("second-instance", showEditor);
   app.whenReady().then(async () => {
     if (process.platform === "win32") {
-      app.setAppUserModelId("com.cooler-display.electron");
+      app.setAppUserModelId("com.open-aio.desktop");
     }
     loadSettings();
     createTray();

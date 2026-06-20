@@ -41,7 +41,7 @@ Do not reintroduce the older app-detector display path into this firmware unless
 
 `electron-app/`
 
-Preferred desktop shell. It owns the app window, tray, local render supervision, stream transforms, and launcher behavior. Future desktop UX work should happen here first.
+Preferred desktop shell. It owns the app window, tray, local render supervision, stream transforms, backend start/status, SignalRGB plugin deployment, and launcher behavior. Future desktop UX work should happen here first.
 
 `nzxt-esc-live/`
 
@@ -71,7 +71,13 @@ Local FastAPI server. It serves the ESC UI, gallery, sensor bridge endpoints, de
 
 SignalRGB RawUSB plugin for Open AIO. Keep only the active RawUSB plugin here unless a second firmware path is intentionally restored. The supported plugin is `Open_AIO_Display.js`; it should appear in SignalRGB as `Open AIO Display` and target VID/PID `303A:4004`.
 
-Deploy it with:
+Deploy it from Electron with:
+
+```text
+Open AIO -> Deploy SignalRGB Plugin
+```
+
+For manual development deployment, use:
 
 ```powershell
 .\scripts\deploy_signalrgb_plugin.ps1
