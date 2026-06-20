@@ -1,0 +1,1 @@
+import{t as e}from"./createLucideIcon-CA6BlT5z.js";var t=[["path",{d:"M6 19V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v14",key:"a"}],["path",{d:"M8 7h8M8 11h8M8 15h8",key:"b"}]],n=e("memory-stick",t);export{t as n,n as t};

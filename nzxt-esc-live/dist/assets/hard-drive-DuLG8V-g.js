@@ -1,0 +1,1 @@
+import{t as e}from"./createLucideIcon-CA6BlT5z.js";var t=[["line",{x1:"22",x2:"2",y1:"12",y2:"12",key:"a"}],["path",{d:"M5.5 5h13L22 12v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-6z",key:"b"}]],n=e("hard-drive",t);export{t as n,n as t};

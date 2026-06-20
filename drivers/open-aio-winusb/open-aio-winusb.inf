@@ -1,0 +1,33 @@
+; WinUSB binding for the Open AIO raw USB experiment.
+
+[Version]
+Signature = "$Windows NT$"
+Class = USBDevice
+ClassGuid = {88BAE032-5A81-49f0-BC3D-A4FF138216D6}
+Provider = %ProviderName%
+DriverVer = 06/14/2026,1.0.0.0
+
+[Manufacturer]
+%ManufacturerName% = Standard,NTamd64
+
+[Standard.NTamd64]
+%DeviceName% = USB_Install, USB\VID_303A&PID_1001
+
+[USB_Install]
+Include = winusb.inf
+Needs = WINUSB.NT
+
+[USB_Install.Services]
+Include = winusb.inf
+Needs = WINUSB.NT.Services
+
+[USB_Install.HW]
+AddReg = DeviceInterfaceGUIDs
+
+[DeviceInterfaceGUIDs]
+HKR,,DeviceInterfaceGUIDs,0x10000,"{975F44D9-0D08-43FD-8B3E-127CA8AFFF9D}"
+
+[Strings]
+ProviderName = "Local"
+ManufacturerName = "Local"
+DeviceName = "Open AIO"

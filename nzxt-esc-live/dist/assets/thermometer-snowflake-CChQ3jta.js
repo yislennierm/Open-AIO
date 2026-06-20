@@ -1,0 +1,1 @@
+import{t as e}from"./createLucideIcon-CA6BlT5z.js";var t=[["path",{d:"M14 14.76V5a2 2 0 0 0-4 0v9.76a4 4 0 1 0 4 0Z",key:"a"}],["path",{d:"M18 2v6M15 5h6",key:"b"}]],n=e("thermometer-snowflake",t);export{t as n,n as t};

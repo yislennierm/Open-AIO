@@ -1,0 +1,14 @@
+{
+  "name": "open-aio-electron",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Open AIO desktop shell for NZXT-ESC 480x480 streaming.",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "check": "node --check src/main.js"
+  },
+  "devDependencies": {
+    "electron": "^31.7.7"
+  }
+}

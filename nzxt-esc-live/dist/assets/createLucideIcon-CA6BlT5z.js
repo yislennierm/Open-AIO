@@ -1,0 +1,1 @@
+import{o as e,t}from"./react-Dq0OdGPe.js";import{i as n,n as r,r as i,t as a}from"./Icon-B29WUrB9.js";var o=e(t()),s=(e,t)=>{let s=(0,o.forwardRef)(({className:s,...c},l)=>(0,o.createElement)(a,{ref:l,iconNode:t,className:r(`lucide-${i(n(e))}`,`lucide-${e}`,s),...c}));return s.displayName=n(e),s};export{s as t};

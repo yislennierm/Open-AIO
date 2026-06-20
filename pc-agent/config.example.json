@@ -1,0 +1,14 @@
+{
+  "server_url": "http://127.0.0.1:8000",
+  "device_id": "cooler-display-01",
+  "api_key": "change-me",
+  "poll_interval_seconds": 1,
+  "transport_mode": "auto",
+  "external_sensor_command": null,
+  "external_sensor_file": "logs/native_sensors.json",
+  "external_sensor_file_max_age_seconds": 5,
+  "usb_skip_when_processes_running": ["SignalRgb.exe"],
+  "log_level": "INFO",
+  "log_file": "logs/agent.log",
+  "status_file": "logs/status.json"
+}

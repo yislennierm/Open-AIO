@@ -1,0 +1,1 @@
+import{t as e}from"./createLucideIcon-CA6BlT5z.js";var t=[["path",{d:"M14 14.76V5a2 2 0 0 0-4 0v9.76a4 4 0 1 0 4 0Z",key:"a"}],["circle",{cx:"19",cy:"5",r:"2",key:"b"}]],n=e("thermometer-sun",t);export{t as n,n as t};

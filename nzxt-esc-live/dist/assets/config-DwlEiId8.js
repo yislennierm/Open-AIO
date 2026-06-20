@@ -1,0 +1,1 @@
+import{i as e,b as a,j as s,I as r,K as n,C as o}from"./useAntiCache-CKSgAOfz.js";import"./react-vendor-Bz3rmKJE.js";e(),a(document.getElementById("root")).render(s.jsx(r,{children:"1"===new URLSearchParams(window.location.search).get("kraken")?s.jsx(n,{}):s.jsx(o,{})}));

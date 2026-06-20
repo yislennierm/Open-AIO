@@ -1,0 +1,1 @@
+import{t as e}from"./createLucideIcon-CA6BlT5z.js";var t=[["path",{d:"M5 13a10 10 0 0 1 14 0",key:"a"}],["path",{d:"M8.5 16.5a5 5 0 0 1 7 0",key:"b"}],["path",{d:"M12 20h.01",key:"c"}]],n=e("wifi",t);export{t as n,n as t};

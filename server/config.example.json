@@ -1,0 +1,7 @@
+{
+  "api_key": "change-me",
+  "asset_base_path": "assets/apps",
+  "default_app_id": "default",
+  "max_asset_size_bytes": 131072
+}
+
