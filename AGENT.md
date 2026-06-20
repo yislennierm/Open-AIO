@@ -69,7 +69,15 @@ Local FastAPI server. It serves the ESC UI, gallery, sensor bridge endpoints, de
 
 `signalrgb/`
 
-SignalRGB plugins for Open AIO. SignalRGB should continue to work against the same RawUSB firmware path.
+SignalRGB RawUSB plugin for Open AIO. Keep only the active RawUSB plugin here unless a second firmware path is intentionally restored. The supported plugin is `Open_AIO_RawUSB.js`; it should appear in SignalRGB as `Open AIO Display` and target VID/PID `303A:4004`.
+
+Deploy it with:
+
+```powershell
+.\scripts\deploy_signalrgb_plugin.ps1
+```
+
+That script copies the plugin into SignalRGB's persistent user plugin directory under `Documents\WhirlwindFX\Plugins`.
 
 `drivers/` and `windows/driver/`
 

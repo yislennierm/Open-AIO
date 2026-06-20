@@ -46,7 +46,7 @@ Local FastAPI server for ESC hosting, sensor shims, gallery data, and frame endp
 
 `signalrgb/`
 
-SignalRGB plugin files for streaming to the Open AIO RawUSB firmware.
+SignalRGB RawUSB plugin for streaming to the Open AIO RawUSB firmware.
 
 `drivers/`, `windows/driver/`, and `scripts/`
 
@@ -121,7 +121,13 @@ The RawUSB streaming path does not require Wi-Fi.
 
 ## SignalRGB
 
-Install the Open AIO plugin from `signalrgb/` into SignalRGB's user plugins folder, then select the Open AIO LCD device/plugin inside SignalRGB.
+Deploy the Open AIO Display plugin to SignalRGB's user plugins folder:
+
+```powershell
+.\scripts\deploy_signalrgb_plugin.ps1
+```
+
+The script installs `signalrgb/Open_AIO_RawUSB.js` into the current user's `Documents\WhirlwindFX\Plugins` folder, which is SignalRGB's persistent user plugin location. Restart SignalRGB after deployment, then select the `Open AIO Display` LCD device/plugin inside SignalRGB.
 
 SignalRGB and the Open AIO Electron renderer share the same RawUSB firmware path. If SignalRGB is streaming, it owns the display. When no stream is active, the device returns to the boot animation.
 
