@@ -69,7 +69,7 @@ Local FastAPI server. It serves the ESC UI, gallery, sensor bridge endpoints, de
 
 `signalrgb/`
 
-SignalRGB RawUSB plugin for Open AIO. Keep only the active RawUSB plugin here unless a second firmware path is intentionally restored. The supported plugin is `Open_AIO_RawUSB.js`; it should appear in SignalRGB as `Open AIO Display` and target VID/PID `303A:4004`.
+SignalRGB RawUSB plugin for Open AIO. Keep only the active RawUSB plugin here unless a second firmware path is intentionally restored. The supported plugin is `Open_AIO_Display.js`; it should appear in SignalRGB as `Open AIO Display` and target VID/PID `303A:4004`.
 
 Deploy it with:
 

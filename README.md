@@ -127,7 +127,7 @@ Deploy the Open AIO Display plugin to SignalRGB's user plugins folder:
 .\scripts\deploy_signalrgb_plugin.ps1
 ```
 
-The script installs `signalrgb/Open_AIO_RawUSB.js` into the current user's `Documents\WhirlwindFX\Plugins` folder, which is SignalRGB's persistent user plugin location. Restart SignalRGB after deployment, then select the `Open AIO Display` LCD device/plugin inside SignalRGB.
+The script installs `signalrgb/Open_AIO_Display.js` into the current user's `Documents\WhirlwindFX\Plugins` folder, which is SignalRGB's persistent user plugin location. Restart SignalRGB after deployment, then select the `Open AIO Display` LCD device/plugin inside SignalRGB.
 
 SignalRGB and the Open AIO Electron renderer share the same RawUSB firmware path. If SignalRGB is streaming, it owns the display. When no stream is active, the device returns to the boot animation.
 
