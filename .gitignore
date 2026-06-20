@@ -17,6 +17,10 @@ firmware/src/config.local.h
 electron-app/node_modules/
 electron-app/settings.json
 
+native/*/node_modules/
+native/*/target/
+native/*/*.node
+
 server/designer_storage*.json
 server/designer_storage*.tmp
 server/preset_previews.json

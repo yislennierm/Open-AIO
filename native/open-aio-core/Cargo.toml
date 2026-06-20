@@ -1,0 +1,16 @@
+[package]
+name = "open-aio-core"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+napi = { version = "2", default-features = false, features = ["napi8"] }
+napi-derive = "2"
+rusb = "0.9"
+
+[build-dependencies]
+napi-build = "2"

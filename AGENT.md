@@ -11,7 +11,8 @@ Open AIO is a USB-first display stack for the LilyGO T-RGB 2.8 inch 480x480 ESP3
 - Smooth frame/video stream over USB.
 - SignalRGB compatibility through the same RawUSB protocol.
 - Electron desktop app as the preferred local control/render shell.
-- Our own sensor path through local Windows APIs, WMI, LibreHardwareMonitor-compatible sources, NVIDIA/Windows APIs, and the Python/agent layer.
+- Our own sensor path through local Windows APIs, WMI, LibreHardwareMonitor-compatible sources, NVIDIA/Windows APIs, and the current Python/agent layer.
+- A native Open AIO core replacing performance-sensitive Python/PowerShell runtime paths over time.
 - No NZXT CAM impersonation, no NZXT USB VID/PID, and no Kraken/CAM HID spoofing.
 
 The device should be a fast frame receiver. Presets, video, browser state, media, and sensors are rendered or resolved on the PC side.
@@ -62,6 +63,10 @@ Preset gallery module. Keep it separate from the ESC runtime so presets can be r
 `pc-agent/`
 
 Python agent and RawUSB transport. It gathers sensor data, provides tolerant sensor naming/mapping, and sends frames to the device. `pc-agent/usb_transport.py` is the shared transport family used by SignalRGB and the Electron/ESC rendering path.
+
+`native/open-aio-core/`
+
+Rust/N-API native core scaffold. The first migration target is RawUSB JPEG frame delivery using the same `SRGB` protocol as the Python transport. Keep it isolated until it builds and measures cleanly, then wire Electron to prefer native USB with Python as fallback. Later migration targets are sensor collection, status, and packaging.
 
 `server/`
 
@@ -115,6 +120,8 @@ Default transport details:
 - IN endpoint: `0x81`
 
 Avoid adding USB write-back or acknowledgement traffic on the hot frame path unless it is measured and proven not to introduce burst/jump behavior.
+
+The native core must preserve this protocol exactly while it replaces Python transport code. Any change to packet headers, chunking, endpoint usage, or acknowledgement behavior must be measured against SignalRGB compatibility and Electron preview smoothness.
 
 ## Rendering Rules
 
@@ -214,4 +221,6 @@ Broad text scans can hit base64 preset blobs. Investigate hits, but distinguish 
 - Keep SignalRGB smooth on the RawUSB lab path.
 - Keep Electron/ESC live preview and device stream synchronized during preset edits.
 - Formalize gallery refresh/import so upstream presets can be brought in without overwriting Open AIO changes.
+- Build and validate `native/open-aio-core`, then move Electron USB frame delivery to native code with Python as fallback.
+- Move sensors from Python to native Windows APIs only after native USB delivery is stable.
 - Revisit app detector/icons later only after stream stability is protected.

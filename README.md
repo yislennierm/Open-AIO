@@ -40,6 +40,10 @@ Preset gallery module. This is kept separate from the ESC runtime so presets can
 
 Python agent and RawUSB transport. It gathers local sensor data and sends rendered frames to the device.
 
+`native/open-aio-core/`
+
+Rust/N-API native core scaffold. This is the planned replacement for the Python hot path: RawUSB frame delivery first, then sensors and status plumbing after the USB path is proven.
+
 `server/`
 
 Local FastAPI server for ESC hosting, sensor shims, gallery data, and frame endpoints.
@@ -86,6 +90,8 @@ http://127.0.0.1:8000/nzxt-esc/?kraken=1&mockLcd=480&mockShape=circle
 Use the Electron app as the preferred control surface when testing live streaming, because it manages the render process more reliably than a normal browser tab. The Electron menu also exposes backend status, log access, stream transform controls, and SignalRGB plugin deployment.
 
 Older Python tray and experimental native sensor-bridge paths have been removed from the active tree. The desktop product path is Electron plus the Python server/agent behind it.
+
+The active migration direction is Electron plus a native Open AIO core. Python remains the runtime fallback today, but new performance-sensitive code should move toward `native/open-aio-core/` instead of adding more Python or PowerShell to the live path.
 
 ## Firmware Build And Flash
 
