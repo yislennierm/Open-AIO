@@ -448,7 +448,7 @@ function buildMenu() {
         { label: "Open Logs Folder", click: () => shell.openPath(LOG_DIR) },
         { type: "separator" },
         { label: "Open NZXT-ESC", click: showEditor },
-        { label: "Open Status Page", click: () => shell.openExternal(`${SERVER_URL}/`) },
+        { label: "Open Status Page", click: () => shell.openExternal(`${SERVER_URL}/cam`) },
         { type: "separator" },
         { label: "Deploy SignalRGB Plugin", click: deploySignalRgbPlugin },
         { label: "Open SignalRGB Plugin Folder", click: () => shell.openPath(SIGNALRGB_PLUGIN_DIR) },
