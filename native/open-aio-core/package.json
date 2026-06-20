@@ -6,7 +6,8 @@
   "main": "index.js",
   "scripts": {
     "build": "napi build --platform --release",
-    "check": "cargo check",
+    "build:service": "cargo build --release --bin open-aio-service",
+    "check": "cargo check --all-targets",
     "test:packet": "node test/protocol-smoke.js"
   },
   "devDependencies": {

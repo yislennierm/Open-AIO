@@ -42,7 +42,7 @@ Python agent and RawUSB transport. It gathers local sensor data and sends render
 
 `native/open-aio-core/`
 
-Rust/N-API native core scaffold. This is the planned replacement for the Python hot path: RawUSB frame delivery first, then sensors and status plumbing after the USB path is proven.
+Rust native core scaffold. This is the planned replacement for the Python hot path: a Windows helper executable/service for RawUSB frame delivery first, then sensors and status plumbing after the USB path is proven. A N-API module is also built for optional in-process Electron integration.
 
 `server/`
 
@@ -91,7 +91,7 @@ Use the Electron app as the preferred control surface when testing live streamin
 
 Older Python tray and experimental native sensor-bridge paths have been removed from the active tree. The desktop product path is Electron plus the Python server/agent behind it.
 
-The active migration direction is Electron plus a native Open AIO core. Python remains the runtime fallback today, but new performance-sensitive code should move toward `native/open-aio-core/` instead of adding more Python or PowerShell to the live path.
+The active migration direction is Electron plus native Open AIO helper/service executables, similar to common Electron hardware apps. Python remains the runtime fallback today, but new performance-sensitive code should move toward `native/open-aio-core/` instead of adding more Python or PowerShell to the live path.
 
 ## Firmware Build And Flash
 

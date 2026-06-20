@@ -12,7 +12,7 @@ Open AIO is a USB-first display stack for the LilyGO T-RGB 2.8 inch 480x480 ESP3
 - SignalRGB compatibility through the same RawUSB protocol.
 - Electron desktop app as the preferred local control/render shell.
 - Our own sensor path through local Windows APIs, WMI, LibreHardwareMonitor-compatible sources, NVIDIA/Windows APIs, and the current Python/agent layer.
-- A native Open AIO core replacing performance-sensitive Python/PowerShell runtime paths over time.
+- A native Open AIO helper/service layer replacing performance-sensitive Python/PowerShell runtime paths over time.
 - No NZXT CAM impersonation, no NZXT USB VID/PID, and no Kraken/CAM HID spoofing.
 
 The device should be a fast frame receiver. Presets, video, browser state, media, and sensors are rendered or resolved on the PC side.
@@ -66,7 +66,7 @@ Python agent and RawUSB transport. It gathers sensor data, provides tolerant sen
 
 `native/open-aio-core/`
 
-Rust/N-API native core scaffold. The first migration target is RawUSB JPEG frame delivery using the same `SRGB` protocol as the Python transport. Keep it isolated until it builds and measures cleanly, then wire Electron to prefer native USB with Python as fallback. Later migration targets are sensor collection, status, and packaging.
+Rust native core scaffold. The first migration target is RawUSB JPEG frame delivery using the same `SRGB` protocol as the Python transport. The CAM-aligned shape is Electron UI plus a native helper/service executable (`open-aio-service.exe`) reached over IPC. The crate also builds a N-API module for optional in-process Electron integration, but the service/helper model should be considered the primary architecture. Keep it isolated until it measures cleanly, then wire Electron to prefer native USB with Python as fallback. Later migration targets are sensor collection, status, Windows service install, and packaging.
 
 `server/`
 
@@ -121,7 +121,7 @@ Default transport details:
 
 Avoid adding USB write-back or acknowledgement traffic on the hot frame path unless it is measured and proven not to introduce burst/jump behavior.
 
-The native core must preserve this protocol exactly while it replaces Python transport code. Any change to packet headers, chunking, endpoint usage, or acknowledgement behavior must be measured against SignalRGB compatibility and Electron preview smoothness.
+The native helper/service must preserve this protocol exactly while it replaces Python transport code. Any change to packet headers, chunking, endpoint usage, or acknowledgement behavior must be measured against SignalRGB compatibility and Electron preview smoothness.
 
 ## Rendering Rules
 
@@ -221,6 +221,6 @@ Broad text scans can hit base64 preset blobs. Investigate hits, but distinguish 
 - Keep SignalRGB smooth on the RawUSB lab path.
 - Keep Electron/ESC live preview and device stream synchronized during preset edits.
 - Formalize gallery refresh/import so upstream presets can be brought in without overwriting Open AIO changes.
-- Build and validate `native/open-aio-core`, then move Electron USB frame delivery to native code with Python as fallback.
+- Build and validate `native/open-aio-core`, then move Electron USB frame delivery to `open-aio-service.exe`/native IPC with Python as fallback.
 - Move sensors from Python to native Windows APIs only after native USB delivery is stable.
 - Revisit app detector/icons later only after stream stability is protected.

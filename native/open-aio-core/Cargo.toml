@@ -5,7 +5,11 @@ edition = "2021"
 license = "MIT"
 
 [lib]
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "open-aio-service"
+path = "src/main.rs"
 
 [dependencies]
 napi = { version = "2", default-features = false, features = ["napi8"] }

@@ -4,15 +4,15 @@ use rusb::{DeviceHandle, GlobalContext};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-const VID: u16 = 0x303A;
-const PID: u16 = 0x4004;
-const OUT_ENDPOINT: u8 = 0x01;
-const IN_ENDPOINT: u8 = 0x81;
-const CHUNK_SIZE: usize = 4 * 1024;
-const TIMEOUT_MS: u64 = 250;
+pub const VID: u16 = 0x303A;
+pub const PID: u16 = 0x4004;
+pub const OUT_ENDPOINT: u8 = 0x01;
+pub const IN_ENDPOINT: u8 = 0x81;
+pub const CHUNK_SIZE: usize = 4 * 1024;
+pub const TIMEOUT_MS: u64 = 250;
 
-const SIGNALRGB_MAGIC: &[u8; 4] = b"SRGB";
-const CMD_SIGNALRGB_JPEG: u8 = 0x05;
+pub const SIGNALRGB_MAGIC: &[u8; 4] = b"SRGB";
+pub const CMD_SIGNALRGB_JPEG: u8 = 0x05;
 
 #[napi(object)]
 pub struct ProtocolInfo {
@@ -63,6 +63,18 @@ pub fn make_signalrgb_jpeg_header(
     Ok(build_signalrgb_jpeg_header(&jpeg, flags).to_vec().into())
 }
 
+pub fn signalrgb_jpeg_header(
+    jpeg: &[u8],
+    scale: u8,
+    wait_status: bool,
+) -> std::result::Result<Vec<u8>, String> {
+    if jpeg.is_empty() {
+        return Err("empty jpeg frame".to_string());
+    }
+    let flags = (scale & 0x7f) | if wait_status { 0x80 } else { 0 };
+    Ok(build_signalrgb_jpeg_header(jpeg, flags).to_vec())
+}
+
 #[napi]
 pub struct OpenAioUsb {
     inner: Mutex<UsbTransport>,
@@ -90,12 +102,11 @@ impl OpenAioUsb {
         }
 
         let flags = ((scale.unwrap_or(0) as u8) & 0x7f) | 0x00;
-        let header = build_signalrgb_jpeg_header(&jpeg, flags);
         let mut transport = self
             .inner
             .lock()
             .map_err(|_| Error::from_reason("usb transport lock poisoned"))?;
-        Ok(transport.write(&header, &jpeg))
+        Ok(transport.send_signalrgb_jpeg(&jpeg, flags))
     }
 
     #[napi]
@@ -109,19 +120,24 @@ impl OpenAioUsb {
     }
 }
 
-struct UsbTransport {
+pub struct UsbTransport {
     handle: Option<DeviceHandle<GlobalContext>>,
 }
 
 impl UsbTransport {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self { handle: None }
     }
 
-    fn close(&mut self) {
+    pub fn close(&mut self) {
         if let Some(handle) = self.handle.take() {
             let _ = handle.release_interface(0);
         }
+    }
+
+    pub fn send_signalrgb_jpeg(&mut self, jpeg: &[u8], flags: u8) -> UsbWriteResult {
+        let header = build_signalrgb_jpeg_header(jpeg, flags);
+        self.write(&header, jpeg)
     }
 
     fn connect(&mut self) -> Result<&mut DeviceHandle<GlobalContext>> {
