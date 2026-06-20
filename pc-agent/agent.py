@@ -205,12 +205,19 @@ def write_designer_preview_status(
     config: dict[str, Any],
     device_id: str,
     server_url: str,
+    session: requests.Session,
+    telemetry_url: str,
+    headers: dict[str, str],
     usb_sender: UsbStateSender,
 ) -> None:
     try:
         active_process, active_window_title = get_foreground_window_info()
     except Exception:
         active_process, active_window_title = "unknown.exe", ""
+    telemetry = apply_external_sensors(collect_telemetry(), config)
+    payload = {"active_process": active_process, "active_window_title": active_window_title, **telemetry}
+    response = session.post(telemetry_url, json=payload, headers=headers, timeout=2.0)
+    response.raise_for_status()
     write_status(
         status_path,
         {
@@ -220,13 +227,19 @@ def write_designer_preview_status(
             "device_id": device_id,
             "server_url": server_url,
             "server_status": "ok",
-            "http_status": 200,
+            "http_status": response.status_code,
             "usb_status": "designer_preview",
             "usb_error": usb_sender.last_error,
             "transport_mode": str(config.get("transport_mode", "auto")),
             "active_process": active_process,
             "active_window_title": active_window_title,
-            "message": "designer preview owns USB; telemetry paused",
+            "cpu_temp": payload.get("cpu_temp"),
+            "gpu_temp": payload.get("gpu_temp"),
+            "gpu_load": payload.get("gpu_load"),
+            "ram_used_percent": payload.get("ram_used_percent"),
+            "cpu_source": get_last_cpu_source(),
+            "gpu_source": get_last_gpu_source(),
+            "message": "designer preview owns USB; telemetry still live",
         },
     )
 
@@ -447,7 +460,7 @@ def run_agent() -> None:
                     last_designer_frame_sent_at = time.monotonic()
 
             if designer_active:
-                logger.info("designer preview active; pausing telemetry while preview owns USB")
+                logger.info("designer preview active; keeping telemetry live while preview owns USB")
                 last_status_write_at = 0.0
                 designer_inactive_since: float | None = None
                 while transport_mode != "wifi_only" and not usb_owner_cache.is_present():
@@ -496,7 +509,7 @@ def run_agent() -> None:
                         continue
                     if now - last_status_write_at >= 1.0:
                         try:
-                            write_designer_preview_status(status_path, config, device_id, server_url, usb_sender)
+                            write_designer_preview_status(status_path, config, device_id, server_url, session, url, headers, usb_sender)
                         except OSError as exc:
                             logger.warning("status write failed: %s", exc)
                         last_status_write_at = now
