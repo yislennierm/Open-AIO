@@ -22,6 +22,7 @@ CREATE_NO_WINDOW = 0x08000000 if os.name == "nt" else 0
 _LOCK_FILE = None
 DESIGNER_PREVIEW_RELEASE_GRACE_SECONDS = 3.0
 DESIGNER_PREVIEW_STATS_INTERVAL_SECONDS = 5.0
+DESIGNER_PREVIEW_TELEMETRY_INTERVAL_SECONDS = 5.0
 DIRECT_USB_OWNER_TTL_SECONDS = 4.0
 
 
@@ -507,7 +508,7 @@ def run_agent() -> None:
                             last_status_write_at = now
                         time.sleep(0.2)
                         continue
-                    if now - last_status_write_at >= 1.0:
+                    if now - last_status_write_at >= DESIGNER_PREVIEW_TELEMETRY_INTERVAL_SECONDS:
                         try:
                             write_designer_preview_status(status_path, config, device_id, server_url, session, url, headers, usb_sender)
                         except OSError as exc:
@@ -519,7 +520,7 @@ def run_agent() -> None:
                             session,
                             server_url,
                             headers,
-                            last_designer_frame_sequence,
+                            0,
                             timeout=0.15,
                         )
                         if designer_frame is not None:
@@ -687,7 +688,7 @@ def run_agent() -> None:
                         session,
                         server_url,
                         headers,
-                        last_designer_frame_sequence,
+                        0,
                         timeout=min(0.2, max(0.05, remaining)),
                     )
                     if designer_frame is not None:
