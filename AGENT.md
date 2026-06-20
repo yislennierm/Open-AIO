@@ -178,6 +178,13 @@ There should be exactly two Markdown files in the repo:
 
 When adding documentation, update one of those two files instead of creating another `.md` file. Keep the README useful for a new human user. Keep this file useful for future AI/developer sessions.
 
+When the user says `document project`, treat it as an explicit instruction to:
+
+- Review the current project state.
+- Update `README.md` and/or `AGENT.md` only if something needs to be captured.
+- Run the documentation and privacy checks.
+- Commit and push the documentation update to GitHub from `.publish/Open-AIO-clean`, the sanitized source of truth.
+
 ## Verification Checklist
 
 Before publishing changes:

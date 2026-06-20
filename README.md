@@ -165,4 +165,4 @@ This repository intentionally has only two Markdown files:
 - `README.md`: project overview and human usage.
 - `AGENT.md`: architecture notes, AI-session context, process rules, and future work.
 
-Keep new documentation in one of those two files.
+Keep new documentation in one of those two files. When the project is documented or refreshed, both files should be reviewed, only the relevant file or files should change, and the clean GitHub tree should be pushed after the documentation checks pass.
