@@ -36,10 +36,6 @@
         const payload = await response.json();
         const data = payload && typeof payload.data === "object" ? payload.data : payload;
         latestMonitoring = data;
-        if (params.get("streamRenderer") === "1" && Date.now() - (window.__coolerLastRendererMonitoringLog || 0) > 5000) {
-          window.__coolerLastRendererMonitoringLog = Date.now();
-          console.info("[open-aio-monitoring]", data?.updatedAt, data?.gpus?.[0]?.load, data?.ram?.usedPercent);
-        }
         for (const callback of monitoringSubscribers) {
           try {
             callback(data);

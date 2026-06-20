@@ -632,6 +632,10 @@ async function storePresetPreview(mediaId, dataUrl) {
 
 async function refreshPresetThumbnails() {
   if (thumbnailRunning || !editorWindow || editorWindow.isDestroyed()) return;
+  if (streaming) {
+    log("[preset-thumbnails] skipped while streaming");
+    return;
+  }
   thumbnailRunning = true;
   let thumbnailWindow = null;
   try {
@@ -656,6 +660,7 @@ async function refreshPresetThumbnails() {
       if (level >= 2) log("[preset-thumbnail-render]", message);
     });
     for (const target of targets) {
+      if (streaming) break;
       if (!target || !target.id || !target.previewImageId) continue;
       const url = `${SERVER_URL}/nzxt-esc/?kraken=1&mockLcd=480&mockShape=circle&streamRenderer=1&presetId=${encodeURIComponent(target.id)}&thumbnail=1&_=${Date.now()}`;
       await loadURL(thumbnailWindow, url);
@@ -725,6 +730,10 @@ function setStreaming(active) {
   streaming = active;
   buildMenu();
   postPreviewActive(active);
+  if (active && thumbnailTimer) {
+    clearTimeout(thumbnailTimer);
+    thumbnailTimer = null;
+  }
   if (heartbeatTimer) {
     clearInterval(heartbeatTimer);
     heartbeatTimer = null;
