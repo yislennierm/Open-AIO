@@ -1,6 +1,60 @@
 (function () {
   const params = new URLSearchParams(window.location.search);
+  function installMonitoringBridge(version) {
+    if (window.__coolerMonitoringBridgeVersion === version) {
+      return;
+    }
+    window.__coolerMonitoringBridgeVersion = version;
+    let latestMonitoring = null;
+    const monitoringSubscribers = new Set();
+
+    window.nzxt = window.nzxt || {};
+    window.nzxt.v1 = {
+      ...(window.nzxt.v1 || {}),
+      width: 480,
+      height: 480,
+      shape: "circle",
+      targetFps: 24,
+      getLCDSize: () => ({ width: 480, height: 480, shape: "circle" }),
+      onMonitoringDataUpdate: (callback) => {
+        if (typeof callback !== "function") return () => {};
+        monitoringSubscribers.add(callback);
+        if (latestMonitoring) {
+          try {
+            callback(latestMonitoring);
+          } catch {}
+        }
+        return () => monitoringSubscribers.delete(callback);
+      },
+      getMonitoringData: () => latestMonitoring,
+    };
+
+    async function pollMonitoring() {
+      try {
+        const response = await fetch("/api/nzxt/v1/monitoring", { cache: "no-store" });
+        if (!response.ok) return;
+        const payload = await response.json();
+        const data = payload && typeof payload.data === "object" ? payload.data : payload;
+        latestMonitoring = data;
+        if (params.get("streamRenderer") === "1" && Date.now() - (window.__coolerLastRendererMonitoringLog || 0) > 5000) {
+          window.__coolerLastRendererMonitoringLog = Date.now();
+          console.info("[open-aio-monitoring]", data?.updatedAt, data?.gpus?.[0]?.load, data?.ram?.usedPercent);
+        }
+        for (const callback of monitoringSubscribers) {
+          try {
+            callback(data);
+          } catch {}
+        }
+        window.dispatchEvent(new CustomEvent("nzxtMonitoringData", { detail: data }));
+      } catch {}
+    }
+
+    window.setTimeout(pollMonitoring, 0);
+    window.setInterval(pollMonitoring, 1000);
+  }
+
   if (params.get("streamRenderer") === "1") {
+    installMonitoringBridge("stream-renderer-monitoring-v1");
     return;
   }
   if (params.get("kraken") === "1" && !params.get("presetId")) {
@@ -44,47 +98,9 @@
   let lastPayload = "";
   let lastActivePresetId = "";
   let activeEditUntil = 0;
-  let latestMonitoring = null;
   let previewRepairTimer = 0;
   let previewRepairRunning = false;
-  const monitoringSubscribers = new Set();
-
-  window.nzxt = window.nzxt || {};
-  window.nzxt.v1 = {
-    ...(window.nzxt.v1 || {}),
-    width: 480,
-    height: 480,
-    shape: "circle",
-    targetFps: 24,
-    getLCDSize: () => ({ width: 480, height: 480, shape: "circle" }),
-    onMonitoringDataUpdate: (callback) => {
-      if (typeof callback !== "function") return () => {};
-      monitoringSubscribers.add(callback);
-      if (latestMonitoring) {
-        try {
-          callback(latestMonitoring);
-        } catch {}
-      }
-      return () => monitoringSubscribers.delete(callback);
-    },
-    getMonitoringData: () => latestMonitoring,
-  };
-
-  async function pollMonitoring() {
-    try {
-      const response = await fetch("/api/nzxt/v1/monitoring", { cache: "no-store" });
-      if (!response.ok) return;
-      const payload = await response.json();
-      const data = payload && typeof payload.data === "object" ? payload.data : payload;
-      latestMonitoring = data;
-      for (const callback of monitoringSubscribers) {
-        try {
-          callback(data);
-        } catch {}
-      }
-      window.dispatchEvent(new CustomEvent("nzxtMonitoringData", { detail: data }));
-    } catch {}
-  }
+  installMonitoringBridge("editor-monitoring-v1");
 
   function mediaUrl(media) {
     if (!media || typeof media !== "object" || !media.mediaId) return null;
@@ -788,7 +804,6 @@
     syncNow();
   };
   window.setTimeout(hydrateFromServer, 0);
-  window.setTimeout(pollMonitoring, 0);
   window.setTimeout(() => schedulePreviewRepair(0), 250);
   window.setTimeout(syncNow, 500);
   window.setInterval(() => {
@@ -800,5 +815,4 @@
     }
   }, 75);
   window.setInterval(syncActiveIfChanged, 100);
-  window.setInterval(pollMonitoring, 1000);
 })();

@@ -713,6 +713,11 @@ function createRenderWindow() {
   renderWindow.webContents.on("did-fail-load", (_event, code, description, url) => {
     log("[electron-stream] render load failed", code, description, url);
   });
+  renderWindow.webContents.on("console-message", (_event, level, message) => {
+    if (message.includes("[open-aio-monitoring]") || level >= 2) {
+      log("[electron-render]", message);
+    }
+  });
   renderWindow.loadURL(RENDER_URL);
 }
 
